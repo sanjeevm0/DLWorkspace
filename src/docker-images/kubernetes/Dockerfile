@@ -31,6 +31,7 @@ ENV GOPATH=/go
 COPY id_rsa /root/.ssh/id_rsa
 RUN chmod 400 /root/.ssh/id_rsa
 
+# Install prerequisites
 # Install docker
 RUN apt-get install -y --no-install-recommends apt-transport-https
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -40,6 +41,9 @@ RUN add-apt-repository \
    stable"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     docker-ce
+RUN apt-get install -y --no-install-recommends rsync
+
+RUN go get github.com/tools/godep
 
 # Get Kubernetes
 #RUN go get k8s.io/kubernetes
@@ -49,9 +53,5 @@ RUN git clone git@github.com:MSRCCS/kubernetes /go/src/k8s.io/kubernetes
 WORKDIR /go/src/k8s.io/kubernetes
 RUN git checkout release-1.5-multigpu
 
-RUN go get github.com/tools/godep
+RUN make
 
-RUN apt-get install -y --no-install-recommends rsync
-
-# RUN /usr/bin/dockerd
-# RUN build/run.sh make
