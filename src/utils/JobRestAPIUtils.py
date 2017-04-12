@@ -20,13 +20,14 @@ def LoadJobParams(jobParamsJsonStr):
 	return json.loads(jobParamsJsonStr)
 
 
+
 def SubmitJob(jobParamsJsonStr):
 	ret = {}
 
 	jobParams = LoadJobParams(jobParamsJsonStr)
 	print jobParamsJsonStr
 
-	dataHandler = DataHandler()
+	
 
 	if "jobId" not in jobParams or jobParams["jobId"] == "":
 		#jobParams["jobId"] = jobParams["jobName"] + "-" + str(uuid.uuid4()) 
@@ -34,23 +35,78 @@ def SubmitJob(jobParamsJsonStr):
 		jobParams["jobId"] = str(uuid.uuid4()) 
 	#jobParams["jobId"] = jobParams["jobId"].replace("_","-").replace(".","-")
 
+	userName = jobParams["userName"]
+	if "@" in userName:
+		userName = userName.split("@")[0].strip()
+
+	if "/" in userName:
+		userName = userName.split("/")[1].strip()
 
 	if "cmd" not in jobParams:
 		jobParams["cmd"] = ""
 
 	if "jobPath" in jobParams and len(jobParams["jobPath"].strip()) > 0: 
 		jobPath = jobParams["jobPath"]
+		if ".." in jobParams["jobPath"]:
+			ret["error"] = "ERROR: '..' cannot be used in job directory"
+			return ret
+
+		if "\\." in jobParams["jobPath"]:
+			ret["error"] = "ERROR: invalided job directory"
+			return ret
+
+		if jobParams["jobPath"].startswith("/") or jobParams["jobPath"].startswith("\\"):
+			ret["error"] = "ERROR: job directory should not start with '/' or '\\' " 
+			return ret
+
+		if not jobParams["jobPath"].startswith(userName):
+			jobParams["jobPath"] = os.path.join(userName,jobParams["jobPath"])
+
 	else:
-		jobPath = time.strftime("%y%m%d")+"/"+jobParams["jobId"]
+		jobPath = userName+"/"+ "jobs/"+time.strftime("%y%m%d")+"/"+jobParams["jobId"]
 		jobParams["jobPath"] = jobPath
 
 	if "workPath" not in jobParams or len(jobParams["workPath"].strip()) == 0: 
 	   ret["error"] = "ERROR: work-path cannot be empty"
+	   return ret
+
+	if ".." in jobParams["workPath"]:
+		ret["error"] = "ERROR: '..' cannot be used in work directory"
+		return ret
+
+	if "\\." in jobParams["workPath"]:
+		ret["error"] = "ERROR: invalided work directory"
+		return ret
+
+	if jobParams["workPath"].startswith("/") or jobParams["workPath"].startswith("\\"):
+		ret["error"] = "ERROR: work directory should not start with '/' or '\\' " 
+		return ret
+
+	if not jobParams["workPath"].startswith(userName):
+		jobParams["workPath"] = os.path.join(userName,jobParams["workPath"])
 
 	if "dataPath" not in jobParams or len(jobParams["dataPath"].strip()) == 0: 
 		ret["error"] = "ERROR: data-path cannot be empty"
+		return ret
+
+	if ".." in jobParams["dataPath"]:
+		ret["error"] = "ERROR: '..' cannot be used in data directory"
+		return ret
+
+	if "\\." in jobParams["dataPath"]:
+		ret["error"] = "ERROR: invalided data directory"
+		return ret
+
+	if jobParams["dataPath"][0] == "/" or jobParams["dataPath"][0] == "\\":
+		ret["error"] = "ERROR: data directory should not start with '/' or '\\' " 
+		return ret
 
 
+	jobParams["dataPath"] = os.path.realpath(os.path.join("/",jobParams["dataPath"]))[1:]
+	jobParams["workPath"] = os.path.realpath(os.path.join("/",jobParams["workPath"]))[1:]
+	jobParams["jobPath"] = os.path.realpath(os.path.join("/",jobParams["jobPath"]))[1:]
+
+	dataHandler = DataHandler()
 	if "logDir" in jobParams and len(jobParams["logDir"].strip()) > 0:
 		tensorboardParams = jobParams.copy()
 
@@ -138,6 +194,14 @@ def GetClusterStatus():
 	cluster_status,last_update_time =  dataHandler.GetClusterStatus()
 	dataHandler.Close()
 	return cluster_status,last_update_time
+
+
+def AddUser(username,userId):
+	ret = None
+	dataHandler = DataHandler()
+	ret =  dataHandler.AddUser(username,userId)
+	dataHandler.Close()
+	return ret
 
 
 if __name__ == '__main__':

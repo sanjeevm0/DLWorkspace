@@ -18,7 +18,7 @@ spec:
       hostNetwork: true
       containers:
       - image: {{cnf["worker-dockerregistry"]}}{{cnf["dockerprefix"]}}glusterfs:{{cnf["dockertag"]}}
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         name: glusterfs
         volumeMounts:
         - name: glusterfs-heketi
@@ -39,8 +39,14 @@ spec:
           mountPath: "/var/lib/misc/glusterfsd"
         - name: glusterfs-cgroup
           mountPath: "/sys/fs/cgroup"
+          readOnly: true
+        - name: glusterfs-ssl
+          mountPath: "/etc/ssl"
+          readOnly: true          
         - name: glusterfs-nodes
           mountPath: "/etc/kubernetes/nodes"
+        - name: glusterfs-mount
+          mountPath: "/mnt"
         securityContext:
           capabilities: {}
           privileged: true
@@ -86,6 +92,12 @@ spec:
       - name: glusterfs-cgroup
         hostPath:
           path: "/sys/fs/cgroup"
+      - name: glusterfs-ssl
+        hostPath:
+          path: "/etc/ssl"          
       - name: glusterfs-nodes
         hostPath:
           path: "/etc/kubernetes/nodes"
+      - name: glusterfs-mount
+        hostPath:
+          path: "/mnt"
