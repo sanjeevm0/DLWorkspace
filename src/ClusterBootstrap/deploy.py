@@ -31,6 +31,9 @@ sys.path.append("../utils")
 import utils
 from DockerUtils import build_dockers, push_dockers, run_docker, find_dockers, build_docker_fullname
 
+sys.path.append("../docker-images/glusterfs")
+import launch_glusterfs
+
 capacityMatch = re.compile("\d+[M|G]B")
 digitsMatch = re.compile("\d+")
 defanswer = ""
@@ -83,7 +86,7 @@ default_config_parameters = {
 	"partition-configuration": [ "1" ], 
 	"heketi-docker": "heketi/heketi:dev",
 	# The following file will be copied (not rendered for configuration)
-	"render-exclude" : {"GlusterFSUtils.pyc": True, },
+	"render-exclude" : {"GlusterFSUtils.pyc": True, "launch_glusterfs.pyc": True, },
 	"render-by-copy-ext" : { ".png": True, },
 	"render-by-copy": { "gk-deploy":True, },
 	# glusterFS parameter
@@ -120,12 +123,18 @@ default_config_parameters = {
 								"netvolume" : { 
 									"property": "replica 3", 
 									"transport": "tcp,rdma", 
+									# of nodes that can fail before the volume will become unaccessible. 
+									"tolerance": 2,
+									# number of bricks need to be a multiple of this
+									"multiple": 3, 
 								}, 
 							}, 
 						}, 
 					# These parameters are required for every glusterfs volumes
-					"gluster_volumes_required_param": ["property", "transport" ], 
+					"gluster_volumes_required_param": ["property", "transport", "tolerance", "multiple" ], 
 					}, 
+	# Options to run in glusterfs
+	"launch-glusterfs-opt": "run", 
 }
 
 
@@ -1347,9 +1356,44 @@ def write_glusterFS_configuration( nodesinfo, glusterFSargs ):
 		glusterfs_groups[glusterfs_group]["nodes"].append( node )
 	with open(config_file,'w') as datafile:
 		yaml.dump(config_glusterFS, datafile, default_flow_style=False)
+	return config_glusterFS
+	
+# Form YAML file for glusterfs endpoints, launch glusterfs endpoints. 
+def launch_glusterFS_endpoint( nodesinfo, glusterFSargs ):
+	os.system( "mkdir -p ./deploy/services/glusterFS_ep" )
+	config_glusterFS = write_glusterFS_configuration( nodesinfo, glusterFSargs )
+	glusterfs_groups = config_glusterFS["groups"]
+	with open("./services/glusterFS_ep/glusterFS_ep.yaml",'r') as config_template_file:
+		config_template = yaml.load( config_template_file )
+		config_template_file.close()
+	for group, group_config in glusterfs_groups.iteritems():
+		config_template["metadata"]["name"] = "glusterfs-%s" % group
+		config_template["subsets"] = []
+		endpoint_subsets = config_template["subsets"]
+		for node in nodes:
+			ip = socket.gethostbyname(node)
+			endpoint_subsets.append({"addresses": [{"ip":ip}] , "ports": [{"port":1}] })
+		fname = "./deploy/services/glusterFS_ep/glusterFS_ep_%s.yaml" % group
+		with open( fname, 'w') as config_file:
+			yaml.dump(config_template, config_file, default_flow_style=False)
+		run_kubectl( ["create", "-f", fname ] )
+
+def stop_glusterFS_endpoint( ):
+	glusterfs_groups = config_glusterFS["groups"]
+	for group, group_config in glusterfs_groups.iteritems():
+		fname = "./deploy/services/glusterFS_ep/glusterFS_ep_%s.yaml" % group
+		run_kubectl( ["delete", "-f", fname ] )
+
+# Path to mount name 
+# Change path, e.g., /mnt/glusterfs/localvolume to 
+# name mnt-glusterfs-localvolume
+def path_to_mount_service_name( path ):
+	return path.replace('/','-')[1:]
 
 # Create gluster FS volume 
 def create_glusterFS_volume( nodesinfo, glusterFSargs ):
+	utils.render_template_directory("./storage/glusterFS", "./deploy/storage/glusterFS", config, verbose)
+	config_glusterFS = write_glusterFS_configuration( nodesinfo, glusterFSargs )
 	regmatch = regmatch_glusterFS(glusterFSargs)
 	for node in nodesinfo:
 		alldeviceinfo = nodesinfo[node]
@@ -1393,8 +1437,33 @@ def create_glusterFS_volume( nodesinfo, glusterFSargs ):
 		volumename = fetch_config_and_check(["glusterFS", "volumename" ] )
 		remotecmd += "sudo lvcreate -y -V %dG -T %s/%s -n %s ;" %( int(capacityGB), volumegroup, datapoolname, volumename )
 		mkfsoptions = fetch_config_and_check(["glusterFS", "mkfs.xfs.options" ] )
-		remotecmd += "sudo mkfs.xfs -f %s /dev/%s/%s ;" %( mkfsoptions, volumegroup, volumename )	
-		# print remotecmd 
+		remotecmd += "sudo mkfs.xfs -f %s /dev/%s/%s ;" %( mkfsoptions, volumegroup, volumename )
+		# Create a service for volume mount
+		remotepath = config["glusterfs-localvolume"]
+		remotename = path_to_mount_service_name( remotepath )
+		remotedevice = config["glusterfs-device"]
+		remotemount = remotename + ".mount"
+		utils.sudo_scp(config["ssh_cert"],"./deploy/storage/glusterFS/mnt-glusterfs-localvolume.mount", "/etc/systemd/system/" + remotemount, "core", node, verbose=verbose )
+		remotecmd += "cd /etc/systemd/system; "
+		remotecmd += "sudo systemctl enable %s; " % remotemount
+		remotecmd += "sudo systemctl daemon-reload; ";
+		remotecmd += "sudo systemctl start %s; " % remotemount;
+		groupinfo = launch_glusterfs.find_group( config_glusterFS, node )
+		group = groupinfo[0]
+		group_config = groupinfo[1]
+		othernodes = groupinfo[2]
+		gluster_volumes = group_config["gluster_volumes"]
+		for volume, volume_config in gluster_volumes.iteritems():
+			multiple = volume_config["multiple"]
+			numnodes = len(othernodes) + 1
+			# Find the number of subvolume needed. 
+			subvolumes = 1
+			while ( numnodes * subvolumes ) % multiple !=0:
+				subvolumes +=1; 
+			if verbose: 
+				print( "Volume %s, multiple is %d, # of nodes = %d, make %d volumes ..." % (volume, multiple, numnodes, subvolumes) )
+			for sub in range(1, subvolumes + 1 ):
+				remotecmd += "sudo mkdir -p %s; " % ( os.path.join( remotepath, volume ) + str(sub) )
 		utils.SSH_exec_cmd( config["ssh_cert"], "core", node, remotecmd )
 	
 def remove_glusterFS_volume( nodesinfo, glusterFSargs ):
@@ -1796,7 +1865,9 @@ Command:
             display: display lvm information on each node of the cluster. 
             create: formatting and create lvm for used by glusterfs. 
             remove: deletel and remove glusterfs volumes. 
-	        config: generate configuration file, build and push glusterfs docker	    	
+            config: generate configuration file, build and push glusterfs docker.
+            start: start glusterfs service and endpoints. 
+            stop: stop glusterfs service and endpoints. 
   download  [args] Manage download
             kubectl: download kubelet/kubectl.
             kubelet: download kubelet/kubectl.
@@ -1849,6 +1920,14 @@ Command:
 	parser.add_argument("-v", "--verbose", 
 		help = "verbose print", 
 		action="store_true")
+	parser.add_argument("--glusterfs", 
+		help = textwrap.dedent('''"Additional glusterfs launch parameter, \
+        detach: detach all glusterfs nodes (to rebuild cluster), 
+        start: initiate cluster (all nodes need to be operative during start stage to construct the cluster),
+        run: continuous operation, 
+		''' ), 
+		action="store", 
+		default="run" )
 		
 	parser.add_argument("command", 
 		help = "See above for the list of valid command" )
@@ -1865,6 +1944,13 @@ Command:
 		utils.verbose = True
 	
 	config = init_config()
+	
+	command = args.command
+	nargs = args.nargs
+	if command == "restore":
+		utils.restore_keys(nargs)
+		get_kubectl_binary()
+		exit()
 	
 	# Cluster Config
 	config_cluster = os.path.join(dirpath,"cluster.yaml")
@@ -1890,6 +1976,10 @@ Command:
 		if "clusterId" in tmp:
 			config["clusterId"] = tmp["clusterId"]
 	update_config()
+	
+	# additional glusterfs launch parameter.
+	config["launch-glusterfs-opt"] = args.glusterfs;
+
 	get_ssh_config()
 	
 	if args.yes:
@@ -1899,8 +1989,6 @@ Command:
 	if args.public:
 		ipAddrMetaname = "clientIP"
 		
-	command = args.command
-	nargs = args.nargs
 	
 	if verbose: 
 		print "deploy " + command + " " + (" ".join(nargs))
@@ -2070,6 +2158,12 @@ Command:
 			write_glusterFS_configuration( nodesinfo, glusterFSargs ) 
 			dockername = fetch_config_and_check(["glusterFS", "glusterfs_docker"])
 			push_docker_images( [dockername] )
+		elif nargs[0] == "start":
+			start_kube_service("glusterFS")
+			launch_glusterFS_endpoint( nodesinfo, glusterFSargs )
+		elif nargs[0] == "stop":
+			stop_glusterFS_endpoint()
+			stop_kube_service("glusterFS")
 		else:
 			parser.print_help()
 			print "Unknown subcommand for glusterFS: " + nargs[0]
@@ -2198,10 +2292,6 @@ Command:
 	elif command == "backup":
 		utils.backup_keys(config["cluster_name"], nargs)
 		
-	elif command == "restore":
-		utils.restore_keys(nargs)
-		get_kubectl_binary()
-
 	elif command == "docker":
 		if len(nargs)>=1:
 			if nargs[0] == "build":
