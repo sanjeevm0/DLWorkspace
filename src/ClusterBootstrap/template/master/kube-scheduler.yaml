@@ -13,6 +13,7 @@ spec:
     - scheduler
     - --master=http://127.0.0.1:8080
     - --leader-elect=true
+    - -log_dir=/logs/kubescheduler
     livenessProbe:
       httpGet:
         host: 127.0.0.1
@@ -20,3 +21,11 @@ spec:
         port: 10251
       initialDelaySeconds: 15
       timeoutSeconds: 1
+    volumeMounts:
+    - mountPath: /logs/kubescheduler
+      name: logs
+  volumes:
+  - hostPath:
+      path: /logs/kubescheduler
+    name: logs
+  
