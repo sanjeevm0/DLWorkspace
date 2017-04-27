@@ -7,27 +7,49 @@ sys.path.append('../../utils')
 import utils
 import yaml
 import os
+import subprocess
 import DockerUtils
 
-os.chdir(os.path.dirname(__file__))
+if __name__ == '__main__':
+    os.chdir(os.path.dirname(__file__))
 
-config = yaml.load("config.yaml")
-utils.render_template("Dockerfile.template", "./deploy/Dockerfile", config)
+    config = {}
+    try:
+        with open("config.yaml", "r") as fp :
+            config = yaml.load(fp)
+    except:
+        sys.exit()
 
-os.chdir("./deploy")
-dockerBld = "docker build --build-arg NOCACHE=$(date +%s) -t " + config["k8s-bld"] + " ."
-print dockerBld
-os.system(dockerBld)
+    print config
+    os.system("mkdir -p deploy")
+    utils.render_template("Dockerfile.template", "./deploy/Dockerfile", config)
+    os.system("cp ./gittoken ./deploy/gittoken")
 
-os.system("mkdir -p bin")
-DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "/bin/hyperkube")
+    # Get hash of branch
+    curlCmd = ['curl', "https://api.github.com/repos/MSRCCS/kubernetes/branches/" + config["k8s-gitbranch"]]
+    #print "Command: " + ' '.join(curlCmd)
+    output = subprocess.check_output(curlCmd)
+    #print "Output: " + output
+    ret = yaml.load(output)
+    #print ret
+    sha = ret["commit"]["sha"]
+    print "SHA of HEAD branch " + config["k8s-gitbranch"] + "is " + sha
 
-os.chdir("../kubernetes")
-dockerBld = "docker build -t " + config["k8s-pushto"] + " ."
-print dockerBld
-os.system(dockerBld)
+    os.chdir("./deploy")
+    #dockerBld = "docker build --build-arg NOCACHE=$(date +%s) -t " + config["k8s-bld"] + " ."
+    dockerBld = "docker build --build-arg NOCACHE=" + sha + " -t" + config["k8s-bld"] + " ."
+    print dockerBld
+    os.system(dockerBld)
 
-dockerPush = "docker push " + config["k8s-pushto"]
-print dockerPush
-os.system(dockerPush)
+    os.system("mkdir -p bin")
+    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "/bin/hyperkube")
+
+    os.chdir("../kubernetes")
+    dockerBld = "docker build -t " + config["k8s-pushto"] + " ."
+    print dockerBld
+    os.system(dockerBld)
+
+    dockerPush = "docker push " + config["k8s-pushto"]
+    print dockerPush
+    os.system(dockerPush)
 
