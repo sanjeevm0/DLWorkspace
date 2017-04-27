@@ -42,10 +42,12 @@ if __name__ == '__main__':
     os.system(dockerBld)
 
     os.system("mkdir -p bin")
-    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "/bin/hyperkube")
+    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "./bin/hyperkube")
 
-    os.chdir("../kubernetes")
-    dockerBld = "docker build -t " + config["k8s-pushto"] + " ."
+    os.chdir("../../kubernetes")
+    os.system("mkdir -p deploy/bin")
+    os.system("cp ../kubernetes-build/deploy/bin/hyperkube ./deploy/bin/hyperkube")
+    dockerBld = "docker build --no-cache -t " + config["k8s-pushto"] + " ."
     print dockerBld
     os.system(dockerBld)
 
