@@ -152,3 +152,9 @@ def push_dockers(rootdir, dockerprefix, dockertag, nargs, config, verbose = Fals
 				print "Push to worker docker register %s with name %s" % ( worker_docker_registry , dockername )	
 			push_docker(dockername, worker_docker_registry, verbose)
 
+def copy_from_docker_image(image, srcFile, dstFile):
+	id = subprocess.check_output(['docker', 'create', image])
+	id = id.strip()
+	copyCmd = "docker cp " + id + ":" + srcFile + " " + dstFile
+	os.system(copyCmd)
+	os.system("docker rm -v " + id)

@@ -322,3 +322,10 @@ def getIP(dnsname):
         return ip
     except Exception:
         return None
+
+def copy_from_docker_image(image, srcFile, dstFile):
+	id = subprocess.check_output(['docker', 'create', image)
+	id = id.strip()
+	copyCmd = "docker cp " + id + ":" + srcFile + " " + dstFile
+	os.system(copyCmd)
+	os.system("docker rm -v " + id)
