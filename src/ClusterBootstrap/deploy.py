@@ -871,7 +871,7 @@ def deploy_master(kubernetes_master):
 def get_kubectl_binary():
 	get_hyperkube_docker()
 	#os.system("mkdir -p ./deploy/bin")
-	#urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/kube/kubelet/kubelet", "./deploy/bin/kubelet")
+	urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/kube/kubelet/kubelet", "./deploy/bin/kubelet-old")
 	#urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/kube/kubelet/kubectl", "./deploy/bin/kubectl")
 	#os.system("chmod +x ./deploy/bin/*")
 
