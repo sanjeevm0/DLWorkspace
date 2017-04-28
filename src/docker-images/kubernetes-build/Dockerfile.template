@@ -51,7 +51,7 @@ RUN mkdir /go/src/k8s.io
 RUN mkdir /root/.ssh
 RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 ARG NOCACHE=1
-RUN ssh-agent sh -c 'ssh-add /root/gittoken; git clone git@github.com:MSRCCS/kubernetes /go/src/k8s.io/kubernetes'
+RUN ssh-agent sh -c 'ssh-add /root/gittoken; git clone git@github.com:{{cnf["k8s-gitrepo"]}} /go/src/k8s.io/kubernetes'
 WORKDIR /go/src/k8s.io/kubernetes
 RUN git checkout {{cnf["k8s-gitbranch"]}}
 

@@ -9,6 +9,7 @@ import yaml
 import os
 import subprocess
 import DockerUtils
+import git_utils
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(__file__))
@@ -26,13 +27,7 @@ if __name__ == '__main__':
     os.system("cp ./gittoken ./deploy/gittoken")
 
     # Get hash of branch
-    curlCmd = ['curl', "https://api.github.com/repos/MSRCCS/kubernetes/branches/" + config["k8s-gitbranch"]]
-    #print "Command: " + ' '.join(curlCmd)
-    output = subprocess.check_output(curlCmd)
-    #print "Output: " + output
-    ret = yaml.load(output)
-    #print ret
-    sha = ret["commit"]["sha"]
+    sha = git_utils.github_hash(config["k8s-gitrepo"], config["k8s-gitbranch"])
     print "SHA of HEAD branch " + config["k8s-gitbranch"] + "is " + sha
 
     os.chdir("./deploy")
