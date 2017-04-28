@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     os.chdir("./deploy")
     #dockerBld = "docker build --build-arg NOCACHE=$(date +%s) -t " + config["k8s-bld"] + " ."
-    dockerBld = "docker build --build-arg NOCACHE=" + sha + " -t" + config["k8s-bld"] + " ."
+    dockerBld = "docker build --build-arg NOCACHE=" + sha + " -t " + config["k8s-bld"] + " ."
     print dockerBld
     os.system(dockerBld)
 
