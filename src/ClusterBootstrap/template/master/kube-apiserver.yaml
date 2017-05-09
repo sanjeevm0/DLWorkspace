@@ -33,6 +33,9 @@ spec:
     - --log-dir={{cnf["kubelogdir"]}}/kubeapiserver
     - --logtostderr=false
 {% endif %}
+{% if "kubeloglevel" in cnf %}
+    - --v={{cnf["kubeloglevel"]}}
+{% endif %}
     livenessProbe:
       httpGet:
         host: 127.0.0.1
