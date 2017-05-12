@@ -2132,6 +2132,7 @@ Command:
 	elif command == "updateworker":
 		response = raw_input_with_default("Deploy Worker Nodes (y/n)?")
 		if first_char(response) == "y":
+			#utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
 			check_master_ETCD_status()
 			gen_configs()
 			update_worker_nodes( nargs )
