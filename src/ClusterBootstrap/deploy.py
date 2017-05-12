@@ -878,11 +878,12 @@ def get_kubectl_binary():
 def get_hyperkube_docker() :
 	os.system("mkdir -p ./deploy/bin")
 	copy_from_docker_image(config['kubernetes_docker_image'], "/hyperkube", "./deploy/bin/hyperkube")
-	os.system("cp ./deploy/bin/hyperkube ./deploy/bin/kubelet")
-	os.system("cp ./deploy/bin/hyperkube ./deploy/bin/kubectl")
+	copy_from_docker_image(config['kubernetes_docker_image'], "/kubelet", "./deploy/bin/kubelet")
+	copy_from_docker_image(config['kubernetes_docker_image'], "/kubectl", "./deploy/bin/kubectl")
+	# os.system("cp ./deploy/bin/hyperkube ./deploy/bin/kubelet")
+	# os.system("cp ./deploy/bin/hyperkube ./deploy/bin/kubectl")
 
 def deploy_masters():
-
 	print "==============================================="
 	print "Prepare to deploy kubernetes master"
 	print "waiting for ETCD service is ready..."
@@ -1915,8 +1916,7 @@ def run_docker_image( imagename, native = False ):
 		if native: 
 			os.system( "docker run --rm -ti " + matches[0] )
 		else:
-			run_docker( matches[0], prompt = imagename )
-	
+			run_docker( matches[0], prompt = imagename )	
 
 if __name__ == '__main__':
 	# the program always run at the current directory. 

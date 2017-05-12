@@ -36,12 +36,17 @@ if __name__ == '__main__':
     print dockerBld
     os.system(dockerBld)
 
-    os.system("mkdir -p bin")
-    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "./bin/hyperkube")
+    # hyperkube is all-in-one binary, can get specific ones as needed for size
+    os.system("mkdir -p ../../kubernetes/deploy/bin")
+    print "Copy file hyperkube"
+    # gets kube-scheduler, kube-apiserver
+    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/hyperkube", "../../kubernetes/deploy/bin/hyperkube") 
+    print "Copy file kubelet"
+    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/kubelet", "../../kubernetes/deploy/bin/kubelet")
+    print "Copy file kubectl"
+    DockerUtils.copy_from_docker_image(config["k8s-bld"], "/kubectl", "../../kubernetes/deploy/bin/kubectl")
 
     os.chdir("../../kubernetes")
-    os.system("mkdir -p deploy/bin")
-    os.system("cp ../kubernetes-build/deploy/bin/hyperkube ./deploy/bin/hyperkube")
     dockerBld = "docker build --no-cache -t " + config["k8s-pushto"] + " ."
     print dockerBld
     os.system(dockerBld)
