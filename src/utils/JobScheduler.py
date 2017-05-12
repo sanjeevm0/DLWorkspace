@@ -108,6 +108,7 @@ def GetServiceAddress(jobId):
 		hostPort = None
 		selector = None
 		hostIP = None
+		hostName = None
 
 		for line in lines:
 			if len(line) > 1:
@@ -129,11 +130,18 @@ def GetServiceAddress(jobId):
 				for item in podInfo["items"]:
 					if "status" in item and "hostIP" in item["status"]:
 						hostIP = item["status"]["hostIP"]
+					if "spec" in item and "nodeName" in item["spec"]:
+						hostName = item["spec"]["nodeName"]
 		if containerPort is not None and hostIP is not None and hostPort is not None:
 			svcMapping = {}
 			svcMapping["containerPort"] = containerPort
-			svcMapping["hostIP"] = hostIP
 			svcMapping["hostPort"] = hostPort
+
+			if "." not in hostName and "domain" in config and len(config["domain"].strip()) >0:
+				hostName += "."+config["domain"]
+
+			svcMapping["hostIP"] = hostIP
+			svcMapping["hostName"] = hostName
 			ret.append(svcMapping)
 	return ret
 
@@ -308,8 +316,10 @@ def SubmitRegularJob(job):
 		if not os.path.exists(localJobPath):
 			if "userId" in jobParams:
 				mkdirsAsUser(localJobPath,jobParams["userId"])
+				mkdirsAsUser(os.path.join(localJobPath,"models"),jobParams["userId"])
 			else:
 				mkdirsAsUser(localJobPath,"0")
+				mkdirsAsUser(os.path.join(localJobPath,"models"),"0")
 
 		jobParams["LaunchCMD"] = ""
 		if "cmd" not in jobParams:
@@ -338,6 +348,25 @@ def SubmitRegularJob(job):
 		jobParams["hostworkPath"] = os.path.join(config["storage-mount-path"], workPath)
 		jobParams["hostdataPath"] = os.path.join(config["storage-mount-path"], dataPath)
 		jobParams["nvidiaDriverPath"] = nvidiaDriverPath
+
+
+		userName = jobParams["userName"]
+		if "@" in userName:
+			userName = userName.split("@")[0].strip()
+
+		if "/" in userName:
+			userName = userName.split("/")[1].strip()
+		jobParams["userNameLabel"] = userName
+
+
+		if "mountPoints" not in jobParams:
+			jobParams["mountPoints"] = []
+
+		jobParams["mountPoints"].append({"name":"nvidia-driver","containerPath":"/usr/local/nvidia","hostPath":nvidiaDriverPath})
+		jobParams["mountPoints"].append({"name":"job","containerPath":"/job","hostPath":jobParams["hostjobPath"]})
+		jobParams["mountPoints"].append({"name":"work","containerPath":"/work","hostPath":jobParams["hostworkPath"]})
+		jobParams["mountPoints"].append({"name":"data","containerPath":"/data","hostPath":jobParams["hostdataPath"]})
+
 
 		template = ENV.get_template(os.path.abspath(jobTemp))
 		job_description = template.render(job=jobParams)
@@ -787,7 +816,7 @@ def UpdateDistJobStatus(job):
 	pass
 
 def ScheduleJob():
-	last_update_time = datetime.datetime.now()
+	last_update_time = None
 	while True:
 		try:
 			dataHandler = DataHandler()
@@ -807,7 +836,7 @@ def ScheduleJob():
 		except Exception as e:
 			print e
 		try:
-			if (datetime.datetime.now() - last_update_time).seconds >= 120:
+			if last_update_time is None or (datetime.datetime.now() - last_update_time).seconds >= 120:
 				print "updating cluster status..."
 				get_cluster_status()
 				last_update_time = datetime.datetime.now()
@@ -956,6 +985,7 @@ def get_cluster_status():
 		output = kubectl_exec(" get nodes -o yaml")
 		nodeInfo = yaml.load(output)
 		nodes_status = {}
+		user_status = {}
 
 		if "items" in nodeInfo:
 			for node in nodeInfo["items"]:
@@ -990,10 +1020,15 @@ def get_cluster_status():
 		podsInfo = yaml.load(output)
 		if "items" in podsInfo:
 			for pod in podsInfo["items"]:
+				gpus = 0
+				username = None
+				if "metadata" in pod and "labels" in pod["metadata"] and "userName" in pod["metadata"]["labels"]:
+					username = pod["metadata"]["labels"]["userName"]
 				if "spec" in pod and "nodeName" in pod["spec"]:
 					node_name = pod["spec"]["nodeName"]
 					pod_name = pod["metadata"]["name"]
-					gpus = 0
+					if username is not None:
+						pod_name += " : " + username
 					if "containers" in pod["spec"] :
 						for container in pod["spec"]["containers"]:
 							
@@ -1002,6 +1037,17 @@ def get_cluster_status():
 					if node_name in nodes_status:
 						nodes_status[node_name]["gpu_used"] += gpus
 						nodes_status[node_name]["pods"].append(pod_name)
+
+				if username is not None:
+					if username not in user_status:
+						user_status[username] = gpus
+					else:
+						user_status[username] += gpus
+				
+
+
+
+
 		gpu_avaliable	= 0
 		gpu_reserved	= 0
 		gpu_capacity = 0
@@ -1021,6 +1067,10 @@ def get_cluster_status():
 			gpu_reserved += (node_status["gpu_capacity"] - node_status["gpu_allocatable"])
 			gpu_used +=node_status["gpu_used"]
 			gpu_capacity	+= node_status["gpu_capacity"]
+
+		cluster_status["user_status"] = []
+		for user_name, user_gpu in user_status.iteritems():
+			cluster_status["user_status"].append({"userName":user_name, "userGPU":user_gpu})
 
 		cluster_status["gpu_avaliable"] = gpu_avaliable
 		cluster_status["gpu_capacity"] = gpu_capacity

@@ -10,14 +10,12 @@ sqlserver-database : {{}}
 
 
 # the path of samba file server. 
-smbPath : {{}}
+workFolderAccessPoint : {{}}
+dataFolderAccessPoint : {{}}
 
 
 
 #group id used to authorize the web portal, default group id is 500000513, which gives access permission to all microsoft users. 
-
-WebUIauthorizedGroups: {{}}  
-WebUIadminGroups: {{}} 
 
 # --------- For Philly deployment, please turn on (uncomment) the following options. ---- 
 ###Use cluster.yaml to locate nodes (instead of using the cluster report service)

@@ -15,6 +15,7 @@ import distutils.file_util
 import shutil
 import random
 import glob
+import copy
 
 from os.path import expanduser
 
@@ -78,8 +79,11 @@ default_config_parameters = {
 	"restfulapiport" : "5000",
 	"ssh_cert" : "./deploy/sshkey/id_rsa",
 
-	# the path of where dfs/nfs is mounted on each node, default /dlwsdata
+	# the path of where dfs/nfs is source linked and consumed on each node, default /dlwsdata
 	"storage-mount-path" : "/dlwsdata",
+	# the path of where filesystem is actually mounted /dlwsdata
+	"physical-mount-path" : "/mntdlws",
+
 	# the path of where nvidia driver is installed on each node, default /opt/nvidia-driver/current
 	"nvidia-driver-path" : "/opt/nvidia-driver/current", 
 
@@ -166,8 +170,54 @@ default_config_parameters = {
 	# "philly": philly cluster
 	# "ubuntu": ubuntu cluster
 	"platform-scripts" : "default", 
+
+
+	# Default usergroup for the WebUI portal
+	# Default setting will allow all Microsoft employees to access the cluster, 
+	# You should override this setting if you have concern. 
+	"UserGroups": {
+        # Group name
+        "CCSAdmins": {
+            # The match is in C# Regex Language, please refer to :
+            # https://msdn.microsoft.com/en-us/library/az24scfc(v=vs.110).aspx
+            "Allowed": [ "jinl@microsoft.com", "hongzl@microsoft.com" ],
+            "uid": "900000000-999999999",
+            "gid": "508953967"
+        },
+        "MicrosoftUsers": {
+            # The match is in C# Regex Language, please refer to :
+            # https://msdn.microsoft.com/en-us/library/az24scfc(v=vs.110).aspx
+            "Allowed": [ "@microsoft.com" ],
+            "uid": "900000000-999999999",
+            "gid": "508953967"
+        }, 
+    },
+
+	"WebUIauthorizedGroups": [ "MicrosoftUsers" ], 
+	"WebUIadminGroups" : [ "CCSAdmins" ], 
+	"WinBindServer": [ "http://onenet40.redmond.corp.microsoft.com/domaininfo/GetUserId?userName={0}" ],
+	"workFolderAccessPoint" : "", 
+	"dataFolderAccessPoint" : "", 
 }
 
+# These are super scripts
+scriptblocks = {
+	"azure": [
+		"runscriptonall ./scripts/prepare_ubuntu.sh", 
+  		"execonall sudo usermod -aG docker core",
+		"-y deploy",
+		"-y updateworker",
+  		"-y kubernetes labels",
+  		"-y updateworker",
+  		"docker push restfulapi",
+  		"docker push webui",
+  		"webui",
+		"mount", 
+  		"kubernetes start jobmanager",
+  		"kubernetes start restfulapi",
+  		"kubernetes start webportal",
+	]
+}
 
 
 
@@ -1146,7 +1196,7 @@ def update_worker_nodes( nargs ):
 		#utils.SSH_exec_cmd(config["ssh_cert"], "core", config["kubernetes_master_node"][0], "sudo /opt/bin/kubelet get nodes")
 
 def reset_worker_nodes():
-
+	utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
 	workerNodes = get_worker_nodes(config["clusterId"])
 	for node in workerNodes:
 		reset_worker_node(node)
@@ -1156,19 +1206,6 @@ def reset_worker_nodes():
 def create_MYSQL_for_WebUI():
 	#todo: create a mysql database, and set "mysql-hostname", "mysql-username", "mysql-password", "mysql-database"
 	pass
-
-def build_restful_API_docker():
-	dockername = "%s/%s-restfulapi" %  (config["dockerregistry"],config["cluster_name"])
-	tarname = "deploy/docker/restfulapi-%s.tar" % config["cluster_name"]
-
-	os.system("docker rmi %s" % dockername)
-	os.system("docker build -t %s ../docker-images/RestfulAPI" % dockername)
-
-	if not os.path.exists("deploy/docker"):
-		os.system("mkdir -p %s" % "deploy/docker")
-
-	os.system("rm %s" % tarname )
-	os.system("docker save " + dockername + " > " + tarname )
 
 def deploy_restful_API_on_node(ipAddress):
 
@@ -1181,23 +1218,20 @@ def deploy_restful_API_on_node(ipAddress):
 
 	if not os.path.exists("./deploy/RestfulAPI"):
 		os.system("mkdir -p ./deploy/RestfulAPI")
-	utils.render_template("../utils/config.yaml.template","./deploy/RestfulAPI/config.yaml",config)
+	
+	utils.render_template("./template/RestfulAPI/config.yaml","./deploy/RestfulAPI/config.yaml",config)
 	utils.render_template("./template/master/restapi-kubeconfig.yaml","./deploy/master/restapi-kubeconfig.yaml",config)
 
 	utils.sudo_scp(config["ssh_cert"],"./deploy/RestfulAPI/config.yaml","/etc/RestfulAPI/config.yaml", "core", masterIP )
 	utils.sudo_scp(config["ssh_cert"],"./deploy/master/restapi-kubeconfig.yaml","/etc/kubernetes/restapi-kubeconfig.yaml", "core", masterIP )
 
 
-	utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /dlws-data && sudo mount %s /dlws-data ; docker rm -f restfulapi; docker rm -f jobScheduler ; docker pull %s ; docker run -d -p %s:80 --restart always -v /etc/RestfulAPI:/RestfulAPI --name restfulapi %s ; docker run -d -v /dlws-data:/dlws-data -v /etc/RestfulAPI:/RestfulAPI -v /etc/kubernetes/restapi-kubeconfig.yaml:/root/.kube/config -v /etc/kubernetes/ssl:/etc/kubernetes/ssl --restart always --name jobScheduler %s /runScheduler.sh ;" % (config["nfs-server"], dockername,config["restfulapiport"],dockername,dockername))
+	# utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /dlws-data && sudo mount %s /dlws-data ; docker rm -f restfulapi; docker rm -f jobScheduler ; docker pull %s ; docker run -d -p %s:80 --restart always -v /etc/RestfulAPI:/RestfulAPI --name restfulapi %s ; docker run -d -v /dlws-data:/dlws-data -v /etc/RestfulAPI:/RestfulAPI -v /etc/kubernetes/restapi-kubeconfig.yaml:/root/.kube/config -v /etc/kubernetes/ssl:/etc/kubernetes/ssl --restart always --name jobScheduler %s /runScheduler.sh ;" % (config["nfs-server"], dockername,config["restfulapiport"],dockername,dockername))
 
 
 	print "==============================================="
 	print "restful api is running at: http://%s:%s" % (masterIP,config["restfulapiport"])
 	config["restapi"] = "http://%s:%s" %  (masterIP,config["restfulapiport"])
-
-def build_webUI_docker():
-	os.system("docker rmi %s" % dockername)
-	os.system("docker build -t %s ../docker-images/WebUI" % dockername)
 
 def deploy_webUI_on_node(ipAddress):
 
@@ -1211,15 +1245,85 @@ def deploy_webUI_on_node(ipAddress):
 
 	if not os.path.exists("./deploy/WebUI"):
 		os.system("mkdir -p ./deploy/WebUI")
-	utils.render_template("./template/WebUI/appsettings.json.template","./deploy/WebUI/appsettings.json",config)
-	utils.sudo_scp(config["ssh_cert"],"./deploy/WebUI/appsettings.json","/etc/WebUI/appsettings.json", "core", webUIIP )
+	utils.render_template("./template/WebUI/userconfig.json","./deploy/WebUI/userconfig.json",config)
+	os.system("cp --verbose ./deploy/WebUI/userconfig.json ../WebUI/dotnet/WebPortal/")
+	utils.sudo_scp(config["ssh_cert"],"./deploy/WebUI/userconfig.json","/etc/WebUI/userconfig.json", "core", webUIIP )
 
 
-	utils.SSH_exec_cmd(config["ssh_cert"], sshUser, webUIIP, "docker pull %s ; docker rm -f webui ; docker run -d -p %s:80 -v /etc/WebUI:/WebUI --restart always --name webui %s ;" % (dockername,str(config["webuiport"]),dockername))
+	# utils.SSH_exec_cmd(config["ssh_cert"], sshUser, webUIIP, "docker pull %s ; docker rm -f webui ; docker run -d -p %s:80 -v /etc/WebUI:/WebUI --restart always --name webui %s ;" % (dockername,str(config["webuiport"]),dockername))
 
 
 	print "==============================================="
 	print "Web UI is running at: http://%s:%s" % (webUIIP,str(config["webuiport"]))
+
+def mount_fileshares(perform_mount=True):
+	mountpoints = { }
+	fstabmask = "##############DLWSMOUNT#################\n"
+	fstab = fstabmask
+	for k,v in config["mountpoints"].iteritems():
+		if "type" in v:
+			if v["type"] == "azurefileshare":
+				if "accountname" in v and "filesharename" in v and "mountpoints" in v and "accesskey" in v:
+					mountpoints[k] = copy.deepcopy( v )
+					mountpoints[k]["url"] = "//" + mountpoints[k]["accountname"] + ".file.core.windows.net/"+mountpoints[k]["filesharename"]
+					physicalmountpoint = config["physical-mount-path"] 
+					storagemountpoint = config["storage-mount-path"]
+					if len(v["mountpoints"])>0:
+						physicalmountpoint = os.path.join( physicalmountpoint, v["mountpoints"] )
+						storagemountpoint = os.path.join( storagemountpoint, v["mountpoints"])
+					mountpoints[k]["physicalmountpoint"] = physicalmountpoint
+					mountpoints[k]["storagemountpoint"] = storagemountpoint
+					fstab += "%s %s cifs vers=3.0,username=%s,password=%s,dir_mode=0777,file_mode=0777,serverino\n" % (mountpoints[k]["url"], physicalmountpoint, v["accountname"], v["accesskey"])
+				else:
+					print "Error: fileshare %s, type %s, miss one of the parameter accountname, filesharename, mountpoints, accesskey" %(k, v["type"])
+			else:
+				print "Error: Unknown fileshare %s with type %s" %( k, v["type"])
+		else:
+			print "Error: fileshare %s with no type" %( k )
+	# print fstab
+	if perform_mount:
+		nodes = get_nodes(config["clusterId"])
+		for node in nodes:
+			remotecmd = "sudo rm -rf %s; " % config["storage-mount-path"]
+			remotecmd += "sudo rm -rf %s; " % config["physical-mount-path"]
+			if len(mountpoints) > 1:
+				remotecmd += "sudo mkdir -p %s; " % config["storage-mount-path"]
+			filesharetype = {}
+			for k,v in mountpoints.iteritems():
+				if v["type"] == "azurefileshare":
+					if not ("azurefileshare" in filesharetype):
+						filesharetype["azurefileshare"] = True
+						remotecmd += "sudo apt-get install cifs-utils; "
+					physicalmountpoint = v["physicalmountpoint"] 
+					storagemountpoint = v["storagemountpoint"]
+					remotecmd += "sudo mkdir -p %s; " % physicalmountpoint
+					remotecmd += "sudo mount -t cifs %s %s -o vers=3.0,username=%s,password=%s,dir_mode=0777,file_mode=0777,serverino; " % (v["url"], physicalmountpoint, v["accountname"], v["accesskey"] )
+					remotecmd += "sudo ln -s %s %s; " % (physicalmountpoint, storagemountpoint)
+			utils.SSH_exec_cmd(config["ssh_cert"], "core", node, remotecmd)
+			# Read in configuration of fstab
+			fstabcontent = utils.SSH_exec_cmd_with_output(config["ssh_cert"], "core", node, "cat /etc/fstab")
+			usefstab = fstab
+			if fstabcontent.find("No such file or directory")==-1:
+				index = fstabcontent.find(fstabmask) 
+				if index > 1:
+					usefstab = fstabcontent[:index] + fstab
+				else:
+					usefstab = fstabcontent + "\n" + fstab
+			if verbose:
+				print "----------- Resultant /etc/fstab --------------------"
+				print usefstab
+			os.system("mkdir -p ./deploy/etc")
+			with open("./deploy/etc/fstab","w") as f:
+				f.write(usefstab)
+				f.close()
+			utils.sudo_scp( config["ssh_cert"], "./deploy/etc/fstab", "/etc/fstab", "core", node)
+			 
+		
+	for k, v in mountpoints.iteritems():
+		mountpoints[k].pop("accesskey", None)
+	# print mountpoints
+
+	return mountpoints
 
 
 def deploy_webUI():
@@ -1772,11 +1876,15 @@ def get_all_services():
 		dirname = os.path.join(rootdir, service)
 		if os.path.isdir(dirname):
 			yamlname = os.path.join(dirname, service + ".yaml")
-			if os.path.isfile(yamlname):
-				servicedic[service] = yamlname
-			else:
+			if not os.path.isfile(yamlname):
 				yamls = glob.glob("*.yaml")
-				servicedic[service] = yamls[0]
+				yamlname = yamls[0]
+			with open( yamlname ) as f:
+				service_config = yaml.load(f)
+				f.close()
+				if "kind" in service_config and service_config["kind"]=="DaemonSet":
+					# Only add service if it is a daemonset. 
+					servicedic[service] = yamlname
 	return servicedic
 	
 def get_service_name(service_config_file):
@@ -1810,19 +1918,24 @@ def kubernetes_label_node(cmdoptions, nodename, label):
 
 def kubernetes_label_nodes( verb, servicelists, force ):
 	servicedic = get_all_services()
+	#print servicedic
 	get_nodes(config["clusterId"])
 	labels = fetch_config(["kubelabels"])
+	# print labels
 	for service in servicedic:
 		servicename = get_service_name(servicedic[service])
+		# print "Service %s - %s" %(service, servicename )
 		if (not service in labels) and (not servicename in labels) and "default" in labels:
 			labels[servicename] = labels["default"]
+	# print servicelists
+	# print labels
 	if len(servicelists)==0:
 		servicelists = labels
 	else:
 		for service in servicelists:
 			if (not service in labels) and "default" in labels:
 				labels[service] = labels["default"]
-	# print servicelists
+	#print servicelists
 	for label in servicelists:
 		nodetype = labels[label]
 		if nodetype == "worker_node":
@@ -1918,132 +2031,24 @@ def run_docker_image( imagename, native = False ):
 		else:
 			run_docker( matches[0], prompt = imagename )	
 
-if __name__ == '__main__':
-	# the program always run at the current directory. 
-	dirpath = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
-	# print "Directory: " + dirpath
-	os.chdir(dirpath)
-	parser = argparse.ArgumentParser( prog='deploy.py',
-		formatter_class=argparse.RawDescriptionHelpFormatter,
-		description=textwrap.dedent('''\
-Build, deploy and administer a DL workspace cluster.
-
-Prerequest:
-* Create config.yaml according to instruction in docs/deployment/Configuration.md.
-* Metadata of deployed cluster is stored at deploy.
-
-Command:
-  build     Build USB iso/pxe-server used by deployment.
-  production [nodes] Deploy a production cluster, with tasks of:
-            set hostname, deploy etcd/master nodes, deploy worker nodes, uncordon master nodes. 
-  deploy    Deploy DL workspace cluster.
-  updateworker [nodes] Update the worker nodes. If no additional node is specified, all nodes will be updated. 
-  clean     Clean away a failed deployment.
-  update    [args] Update cluster. 
-            config: update cloud-config of each deployed node. 
-  connect   [master|etcd|worker] num: Connect to either master, etcd or worker node (with an index number).
-  hostname  [args] manage hostname on the cluster
-            set: set hostname
-  uncordon  allow etcd/master nodes to be scheduled jobs 
-  partition [args] Manage data partitions. 
-            ls: show all existing partitions. 
-            create n: create n partitions of equal size.
-            create s1 s2 ... sn: create n partitions;
-              if s_i < 0, the partition is s_i GB, 
-              if s_i > 0, the partition is in portitional to s_i. 
-              We use parted mkpart percentage% to create partitions. As such, the minimum partition is 1% of a disk. 
-  glusterfs [args] manage glusterFS on the cluster. 
-            display: display lvm information on each node of the cluster. 
-            create: formatting and create lvm for used by glusterfs. 
-            remove: deletel and remove glusterfs volumes. 
-            config: generate configuration file, build and push glusterfs docker.
-            start: start glusterfs service and endpoints. 
-            stop: stop glusterfs service and endpoints. 
-  download  [args] Manage download
-            kubectl: download kubelet/kubectl.
-            kubelet: download kubelet/kubectl.
-  backup    [fname] [key] Backup configuration & encrypt, fname is the backup file without surfix. 
-            If key exists, the backup file will be encrypted. 
-  restore   [fname] [key] Decrypt & restore configuration, fname is the backup file with surfix. 
-            If the backup file is encrypted, a key needs to be provided to decrypt the configuration. 
-  etcd      [args] manage etcd server.
-            check: check ETCD service.
-  kubernetes [args] manage kubelet services on the cluster. 
-            start: launch a certain kubelet service. 
-            stop: stop a certain kubelet service. 
-            restart: replace a certain kubelet service. 
-            cordon [node]: cordon certain nodes. If no node, cordon all etcd nodes. 
-            uncordon [node]: uncordon certain nodes. If no node, uncordon all etcd nodes. 
-            labels verb [services]: applying labels to node. 
-              -y: overwrite existing value
-              verb: active, inactive, remove (default=on)
-              services: if none, apply to all services in the service directory
-  kubectl   [args] run a native kubectl command. 
-  docker    [args] manage docker images. 
-            build: build one or more docker images associated with the current deployment. 
-            push: build and push one or more docker images to register
-  execonall [cmd ... ] Execute the command on all nodes and print the output. 
-  doonall [cmd ... ] Execute the command on all nodes. 
-  runscriptonall [script] Execute the shell/python script on all nodes. 
-  listmac   display mac address of the cluster notes
-  checkconfig   display config items
-  ''') )
-	parser.add_argument("-y", "--yes", 
-		help="Answer yes automatically for all prompt", 
-		action="store_true" )
-	parser.add_argument("--native", 
-		help="Run docker in native mode (in how it is built)", 
-		action="store_true" )	
-	parser.add_argument("-p", "--public", 
-		help="Use public IP address to deploy/connect [e.g., Azure, AWS]", 
-		action="store_true")
-	parser.add_argument("-s", "--sudo", 
-		help = "Execute scripts in sudo", 
-		action="store_true" )
-	parser.add_argument("--discoverserver", 
-		help = "Specify an alternative discover server, default = " + default_config_parameters["discoverserver"], 
-		action="store", 
-		default=default_config_parameters["discoverserver"])
-	parser.add_argument("--homeinserver", 
-		help = "Specify an alternative home in server, default = " + default_config_parameters["homeinserver"], 
-		action="store", 
-		default=default_config_parameters["homeinserver"])
-	parser.add_argument("-v", "--verbose", 
-		help = "verbose print", 
-		action="store_true")
-	parser.add_argument("--nocache", 
-		help = "Build docker without cache", 
-		action="store_true")
-
-	parser.add_argument("--glusterfs", 
-		help = textwrap.dedent('''"Additional glusterfs launch parameter, \
-        detach: detach all glusterfs nodes (to rebuild cluster), 
-        start: initiate cluster (all nodes need to be operative during start stage to construct the cluster),
-        run: continuous operation, 
-		''' ), 
-		action="store", 
-		default="run" )
-		
-	parser.add_argument("command", 
-		help = "See above for the list of valid command" )
-	parser.add_argument('nargs', nargs=argparse.REMAINDER, 
-		help="Additional command argument", 
-		)
-	args = parser.parse_args()
+def run_command( args, command, nargs, parser ):
 	nocache = args.nocache
 	
 	# If necessary, show parsed arguments. 
 	# print args
+	global discoverserver
+	global homeinserver
+	global verbose
+	global config
+	
+	global ipAddrMetaname
 	discoverserver = args.discoverserver
 	homeinserver = args.homeinserver
+
 	if args.verbose: 
 		verbose = True
 		utils.verbose = True
 	
-	config = init_config()
-	
-	command = args.command
-	nargs = args.nargs
 	if command == "restore":
 		utils.restore_keys(nargs)
 		#get_kubectl_binary()
@@ -2079,6 +2084,7 @@ Command:
 	get_ssh_config()
 	
 	if args.yes:
+		global defanswer
 		print "Use yes for default answer"
 		defanswer = "yes"
 		
@@ -2302,6 +2308,9 @@ Command:
 		check_master_ETCD_status()
 		gen_configs()		
 		deploy_webUI()
+
+	elif command == "mount":
+		mount_fileshares(True)
 		
 	elif command == "labelwebui":
 		label_webUI(nargs[0])
@@ -2311,6 +2320,9 @@ Command:
 		success = deploy_ETCD_master()
 		if success: 
 			update_worker_nodes( [] )
+
+	elif command == "azure":
+		deploy_azure()
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
@@ -2412,3 +2424,145 @@ Command:
 	else:
 		parser.print_help()
 		print "Error: Unknown command " + command
+
+def run_script_blocks( script_collection ):
+	if verbose:
+		print "Run script blocks %s " % script_collection
+	for script in script_collection:
+		print "parse script %s" % ( script)
+		args = parser.parse_args( script.split(" "))
+		command = args.command
+		nargs = args.nargs
+		print "Run command %s, args %s" % (command, nargs )
+		run_command( args, command, nargs, parser )
+
+if __name__ == '__main__':
+	# the program always run at the current directory. 
+	dirpath = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+	# print "Directory: " + dirpath
+	os.chdir(dirpath)
+	parser = argparse.ArgumentParser( prog='deploy.py',
+		formatter_class=argparse.RawDescriptionHelpFormatter,
+		description=textwrap.dedent('''\
+Build, deploy and administer a DL workspace cluster.
+
+Prerequest:
+* Create config.yaml according to instruction in docs/deployment/Configuration.md.
+* Metadata of deployed cluster is stored at deploy.
+
+Command:
+  scriptblocks Execute a block of scripts. 
+            azure
+  build     Build USB iso/pxe-server used by deployment.
+  production [nodes] Deploy a production cluster, with tasks of:
+            set hostname, deploy etcd/master nodes, deploy worker nodes, uncordon master nodes. 
+  deploy    Deploy DL workspace cluster.
+  updateworker [nodes] Update the worker nodes. If no additional node is specified, all nodes will be updated. 
+  clean     Clean away a failed deployment.
+  update    [args] Update cluster. 
+            config: update cloud-config of each deployed node. 
+  connect   [master|etcd|worker] num: Connect to either master, etcd or worker node (with an index number).
+  hostname  [args] manage hostname on the cluster
+            set: set hostname
+  uncordon  allow etcd/master nodes to be scheduled jobs 
+  partition [args] Manage data partitions. 
+            ls: show all existing partitions. 
+            create n: create n partitions of equal size.
+            create s1 s2 ... sn: create n partitions;
+              if s_i < 0, the partition is s_i GB, 
+              if s_i > 0, the partition is in portitional to s_i. 
+              We use parted mkpart percentage% to create partitions. As such, the minimum partition is 1% of a disk. 
+  glusterfs [args] manage glusterFS on the cluster. 
+            display: display lvm information on each node of the cluster. 
+            create: formatting and create lvm for used by glusterfs. 
+            remove: deletel and remove glusterfs volumes. 
+            config: generate configuration file, build and push glusterfs docker.
+            start: start glusterfs service and endpoints. 
+            stop: stop glusterfs service and endpoints. 
+  download  [args] Manage download
+            kubectl: download kubelet/kubectl.
+            kubelet: download kubelet/kubectl.
+  backup    [fname] [key] Backup configuration & encrypt, fname is the backup file without surfix. 
+            If key exists, the backup file will be encrypted. 
+  restore   [fname] [key] Decrypt & restore configuration, fname is the backup file with surfix. 
+            If the backup file is encrypted, a key needs to be provided to decrypt the configuration. 
+  etcd      [args] manage etcd server.
+            check: check ETCD service.
+  kubernetes [args] manage kubelet services on the cluster. 
+            start: launch a certain kubelet service. 
+            stop: stop a certain kubelet service. 
+            restart: replace a certain kubelet service. 
+            cordon [node]: cordon certain nodes. If no node, cordon all etcd nodes. 
+            uncordon [node]: uncordon certain nodes. If no node, uncordon all etcd nodes. 
+            labels verb [services]: applying labels to node. 
+              -y: overwrite existing value
+              verb: active, inactive, remove (default=on)
+              services: if none, apply to all services in the service directory
+  kubectl   [args] run a native kubectl command. 
+  docker    [args] manage docker images. 
+            build: build one or more docker images associated with the current deployment. 
+            push: build and push one or more docker images to register
+  execonall [cmd ... ] Execute the command on all nodes and print the output. 
+  doonall [cmd ... ] Execute the command on all nodes. 
+  runscriptonall [script] Execute the shell/python script on all nodes. 
+  listmac   display mac address of the cluster notes
+  checkconfig   display config items
+  ''') )
+	parser.add_argument("-y", "--yes", 
+		help="Answer yes automatically for all prompt", 
+		action="store_true" )
+	parser.add_argument("--native", 
+		help="Run docker in native mode (in how it is built)", 
+		action="store_true" )	
+	parser.add_argument("-p", "--public", 
+		help="Use public IP address to deploy/connect [e.g., Azure, AWS]", 
+		action="store_true")
+	parser.add_argument("-s", "--sudo", 
+		help = "Execute scripts in sudo", 
+		action="store_true" )
+	parser.add_argument("--discoverserver", 
+		help = "Specify an alternative discover server, default = " + default_config_parameters["discoverserver"], 
+		action="store", 
+		default=default_config_parameters["discoverserver"])
+	parser.add_argument("--homeinserver", 
+		help = "Specify an alternative home in server, default = " + default_config_parameters["homeinserver"], 
+		action="store", 
+		default=default_config_parameters["homeinserver"])
+	parser.add_argument("-v", "--verbose", 
+		help = "verbose print", 
+		action="store_true")
+	parser.add_argument("--nocache", 
+		help = "Build docker without cache", 
+		action="store_true")
+
+	parser.add_argument("--glusterfs", 
+		help = textwrap.dedent('''"Additional glusterfs launch parameter, \
+        detach: detach all glusterfs nodes (to rebuild cluster), 
+        start: initiate cluster (all nodes need to be operative during start stage to construct the cluster),
+        run: continuous operation, 
+		''' ), 
+		action="store", 
+		default="run" )
+		
+	parser.add_argument("command", 
+		help = "See above for the list of valid command" )
+	parser.add_argument('nargs', nargs=argparse.REMAINDER, 
+		help="Additional command argument", 
+		)
+	args = parser.parse_args()
+	command = args.command
+	nargs = args.nargs
+	if args.verbose:
+		verbose = True
+		utils.verbose = True
+
+	config = init_config()
+
+	if command == "scriptblocks":
+		if nargs[0] in scriptblocks:
+			run_script_blocks( scriptblocks[nargs[0]])
+		else:
+			parser.print_help()
+			print "Error: Unknown scriptblocks " + nargs[0]
+	else:
+		run_command( args, command, nargs, parser)
