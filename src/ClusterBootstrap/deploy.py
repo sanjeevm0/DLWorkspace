@@ -697,10 +697,15 @@ def get_ETCD_master_nodes_from_config(clusterId):
 
 def get_ETCD_master_nodes(clusterId):
 	if "etcd_node" in config:
-		return config["etcd_node"]
+		Nodes = config["etcd_node"]
+		config["kubernetes_master_node"] = Nodes
+		print ("From etcd_node " + " ".join(map(str, Nodes)))
+		return Nodes
 	if "useclusterfile" not in config or not config["useclusterfile"]:
+		print "From cluster portal"
 		return get_ETCD_master_nodes_from_cluster_portal(clusterId)
 	else:
+		print "From master nodes from config"
 		return get_ETCD_master_nodes_from_config(clusterId)
 	
 def get_worker_nodes_from_cluster_report(clusterId):
