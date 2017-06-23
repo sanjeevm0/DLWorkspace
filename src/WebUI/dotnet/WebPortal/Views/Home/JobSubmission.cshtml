@@ -145,34 +145,17 @@
         elem.style.display = chkbox.checked ? "block" : "none";
     }
     function ShowRegularJob() {
-        var elem1 = document.getElementById("regularJob");
-        elem1.style.display = "block";
 
         var elem2 = document.getElementById("PSDistJob");
         elem2.style.display = "none";
 
-        var elem3 = document.getElementById("MPIDistJob");
-        elem3.style.display = "none";
+
     }
     function ShowPSDistJob() {
-        var elem1 = document.getElementById("regularJob");
-        elem1.style.display = "none";
 
         var elem2 = document.getElementById("PSDistJob");
         elem2.style.display = "block";
 
-        var elem3 = document.getElementById("MPIDistJob");
-        elem3.style.display = "none";
-    }
-    function ShowMPIDistJob() {
-        var elem1 = document.getElementById("regularJob");
-        elem1.style.display = "none";
-
-        var elem2 = document.getElementById("PSDistJob");
-        elem2.style.display = "none";
-
-        var elem3 = document.getElementById("MPIDistJob");
-        elem3.style.display = "block";
     }
 
     function UseTemplate(id) {
@@ -271,7 +254,7 @@
             document.getElementById("jobpath").value = "";
 
             document.getElementById("image").value = "bvlc/caffe:cpu";
-            document.getElementById("cmd").value = "apt-get update && apt-get install -y openssh-server sudo && addgroup --force-badname --gid  @ViewData["gid"] domainusers && adduser --force-badname --home /home/@ViewData["Username"] --shell /bin/bash --uid @ViewData["uid"]  -gecos '' @ViewData["Username"] --disabled-password --gid @ViewData["gid"] && adduser @ViewData["Username"] sudo && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && mkdir -p /root/.ssh && cat /work/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys && mkdir -p /home/@ViewData["Username"]/.ssh && cat /work/.ssh/id_rsa.pub >> /home/@ViewData["Username"]/.ssh/authorized_keys && service ssh restart && bash env | while read line; do if [[$line != HOME=* ]] && [[$line != INTERACTIVE * ]] ; then echo \"export $line\" >> /home/@ViewData["Username"]/.bashrc; fi; done && sleep infinity";
+            document.getElementById("cmd").value = "apt-get update && apt-get install -y openssh-server sudo && addgroup --force-badname --gid  @ViewData["gid"] domainusers && adduser --force-badname --home /home/@ViewData["Username"] --shell /bin/bash --uid @ViewData["uid"]  -gecos '' @ViewData["Username"] --disabled-password --gid @ViewData["gid"] && adduser @ViewData["Username"] sudo && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && mkdir -p /root/.ssh && cat /work/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys && mkdir -p /home/@ViewData["Username"]/.ssh && cat /work/.ssh/id_rsa.pub >> /home/@ViewData["Username"]/.ssh/authorized_keys && cp /work/.ssh/id_rsa* /home/@ViewData["Username"]/.ssh/ && chown -R @ViewData["Username"] /home/@ViewData["Username"]/.ssh/ && service ssh restart && env | while read line; do if [[ $line != HOME=* ]] && [[ $line != INTERACTIVE* ]] ; then echo \"export $line\" >> /home/@ViewData["Username"]/.bashrc; fi; done &&  sleep infinity";
             document.getElementById("chkInteractiveJob").checked = true;
             document.getElementById("chkLogDir").checked = false;
             ShowHideDiv(document.getElementById("chkInteractiveJob"), 'interactiveportfield')
@@ -382,14 +365,13 @@
                     </select>
 
                 </div>
-                <div class="form-group" hidden>
+                <div class="form-group">
                     <label>
                         Job Type
                     </label>
                     <br/>
                     <input type="radio" name="jobtrainingtype" id="jobtrainingtype" value="RegularJob" checked="checked"  onclick="ShowRegularJob()" /> Regular Training Job  <br />
-                    <input type="radio" name="jobtrainingtype" id="jobtrainingtype" value="PSDistJob" onclick="ShowPSDistJob()" /> Distributed Training Job (Parameter Server)  <br />
-                    <input type="radio" name="jobtrainingtype" id="jobtrainingtype" value="MPIDistJob"  onclick="ShowMPIDistJob()"/> Distributed Training Job (MPI)    <br />
+                    <input type="radio" name="jobtrainingtype" id="jobtrainingtype" value="PSDistJob" onclick="ShowPSDistJob()" /> Distributed Training Job  <br />
                 </div>
 
                 <div class="form-group">
@@ -399,23 +381,15 @@
                     <input type="text" class="form-control" id="jobname" />
                 </div>
 
-                <div id="regularJob">
-                    <div class="form-group">
-                        <label>
-                            Number of GPUs to use
-                        </label>
-                        <input type="number" class="form-control" id="resourcegpu" value="1" />
-                    </div>
+                <div class="form-group">
+                    <label>
+                        Number of GPUs
+                    </label>
+                    <input type="number" class="form-control" id="resourcegpu" value="1" />
                 </div>
 
 
                 <div id="PSDistJob" hidden>
-                    <div class="form-group">
-                        <label>
-                            Number of GPUs per worker
-                        </label>
-                        <input type="number" class="form-control" id="resourcegpu" value="1" />
-                    </div>
                     <div class="form-group">
                         <label>
                             Number of Parameter Servers
@@ -430,20 +404,6 @@
                     </div>
                 </div>
 
-                <div id="MPIDistJob" hidden>
-                    <div class="form-group">
-                        <label>
-                            Number of GPUs per worker
-                        </label>
-                        <input type="number" class="form-control" id="resourcegpu" value="1" />
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            Number of Workers
-                        </label>
-                        <input type="number" class="form-control" id="nummpiworker" value="1" />
-                    </div>
-                </div>
 
                 <div class="form-group">
                     <label>
@@ -472,14 +432,19 @@
                     <label>
                         Docker Image
                     </label>
-                    <input type="text" class="form-control" id="image" />
+                    <input list="imagelist" class="form-control" name="image" id="image" />
+                    <datalist  id="imagelist">
+                        <option value="mlcloudreg.westus.cloudapp.azure.com:5000/philly/agi-tf-0.12.1-src-ubuntu-16.04:latest" />
+                        <option value="mlcloudreg.westus.cloudapp.azure.com:5000/philly/agi-tf-1.1.0-src-ubuntu-16.04:latest" />
+                        <option value="mlcloudreg.westus.cloudapp.azure.com:5000/philly/agi-tf-pytorch-0.12.1-src-ubuntu-16.04:latest" />
+                    </datalist>
                 </div>
 
                 <div class="form-group">
                     <label>
                         Training Command
                     </label>
-                    <input type="text" class="form-control" id="cmd" />
+                    <textarea type="text" class="form-control" id="cmd" rows="5" > </textarea>
                 </div>
 
                 <div class="form-group">

@@ -8,12 +8,13 @@ This document describes the procedure to deploy DL workspace cluster on Azure. W
 
 2. Create Azure VM in the desired region with a Ubuntu image. 
 
-  Please create a network security group that allow all inbound traffic, and then assign the VM to the network security group. For more information, please refer to [this]. (When the DL Workspace stablize, we may create a list of the specific ports that needed to be opened). 
+  Please create a network security group that allow all inbound traffic, and then assign the VM to the network security group. For more information, please refer to [this](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-nsg). (When the DL Workspace stablize, we may create a list of the specific ports that needed to be opened). 
 
   It is highly recommended that you create the VM following the exact options below:
 
   * Use the new Auzre Portal to create VM. 
   * Image: Ubuntu 16.04 LTS
+  * Use SSH key to access the VM, and provide the public key at src/ClusterBootstrap/deploy/sshkey/id_rsa.pub, or the public key associated with ssh_cert configuration if you use a pre-generated SSH key
   * Use Resource Manager 
   * Click Public IP, and select "Static IP". 
   * Assign the VM to the Security Group created above. 
@@ -81,14 +82,17 @@ This document describes the procedure to deploy DL workspace cluster on Azure. W
   ./deploy.py -y updateworker
   ```
 
-  4. Build and deploy jobmanager, restfulapi, and webportal. 
+  4. Build and deploy jobmanager, restfulapi, and webportal. Mount storage.
   ```
   ./deploy.py docker push restfulapi
   ./deploy.py docker push webui
   ./deploy.py webui
+  ./deploy.py mount
   ./deploy.py kubernetes start jobmanager
   ./deploy.py kubernetes start restfulapi
   ./deploy.py kubernetes start webportal
   ```
+
+6. If you run into a deployment issue, please check [here](Deployment_Issue.md) first. 
 
 
