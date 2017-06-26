@@ -1456,6 +1456,45 @@ def pick_server( nodelists, curNode ):
 	else:
 		return curNode
 
+def deploy_acs():
+	if (os.path.isfile("./deploy/sshkey")):
+		response = raw_input_with_default("SSH keys already exist, do you want to keep existing (y/n)?")
+		if first_char(response) == "n":
+			utils.backup_keys(config["cluster_name"])
+			regenerate_key = True
+		else:
+			regenerate_key = False
+
+    cmd = "az acs create --orchestrator-type=kubernetes"
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --name=%s" % config["cluster_name"]
+	cmd += " --agent-count=%d" % config["worker_node_num"]
+	cmd += " --master-count=%d" % config["master_node_num"]
+	cmd += " --location=%s" % config["cluster_location"]
+	cmd += " --ssh-key-value=%s" % "./deploy/sshkey/id_rsa.pub"
+	if (regenerate_key):			
+		os.system("rm -r ./deploy/sshkey || true")
+		cmd += " --generate-ssh-keys"
+	os.system(cmd)
+
+	# Install kubectl / get credentials
+	os.system("az acs kubernetes install-cli")
+	cmd = "az acs kubernetes get-credentials"
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --name=%s" % config["cluster_name"]
+	cmd += " --file=%s" % "./deploy/clusterconfig"
+	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
+	os.system(cmd)
+
+	# Public IP on worker nodes
+	
+
+
+	1987  az network public-ip create --name ip0 --resource-group=kubegroup1 --location=westus --allocation-method Static --dns-name kubegroup1-ip0
+1992  az network nic ip-config list --nic-name=k8s-agent-FFC9D5A9-nic-0 --resource-group=kubegroup1
+1994  az network nic ip-config update --nic-name k8s-agent-FFC9D5A9-nic-0 --name=ipconfig1 --resource-group=kubegroup1 --subnet=k8s-subnet  --vnet=k8s-vnet-FFC9D5A9 --public-ip-address=ip0
+
+
 
 def get_mount_fileshares(curNode = None):
 	allmountpoints = { }
@@ -2985,6 +3024,9 @@ def run_command( args, command, nargs, parser ):
 
 	elif command == "azure":
 		deploy_azure()
+
+	elif command = "acs":
+		deploy_acs()
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
