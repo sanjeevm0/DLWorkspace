@@ -1605,6 +1605,7 @@ def deploy_acs():
 	cmd += " --master-count=%d" % config["master_node_num"]
 	cmd += " --location=%s" % config["cluster_location"]
 	cmd += " --agent-vm-size=%s" % config["acsagentsize"]
+	cmd += " --admin-username=core"
 	cmd += " --ssh-key-value=%s" % "./deploy/sshkey/id_rsa.pub"
 	if (regenerate_key):			
 		os.system("rm -r ./deploy/sshkey || true")
@@ -2897,10 +2898,7 @@ def run_command( args, command, nargs, parser ):
 				if num < 0 or num >= len(nodes):
 					num = 0
 			nodename = nodes[num]
-			if (config["isacs"]):
-				utils.SSH_connect(config["ssh_cert"], "azureuser", nodename)
-			else:
-				utils.SSH_connect( config["ssh_cert"], "core", nodename)
+			utils.SSH_connect( config["ssh_cert"], "core", nodename)
 			exit()
 
 	elif command == "deploy" and "clusterId" in config:
