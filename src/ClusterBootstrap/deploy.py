@@ -1456,7 +1456,83 @@ def pick_server( nodelists, curNode ):
 	else:
 		return curNode
 
+def acs_get_id(elem):
+	elemFullName = elem["id"]
+	reMatch = re.match('(.*)/(.*)', elemFullName)
+	return reMatch.group(2)
+
+def acs_get_ip(ipaddrName):
+	cmd = "az network public-ip show --resource-group="+config["resource_group"]+" --name="+ipaddrName
+	#rint "CMD: "+cmd
+	ipInfo = subprocess.check_output(cmd, shell=True)
+	ipInfo = yaml.load(ipInfo)
+	return ipInfo["ipAddress"]
+
+def acs_get_machineIP(machineName):
+	print "Machine: "+machineName
+	nicInfo = subprocess.check_output("az vm show --name="+machineName+" --resource-group="+config["resource_group"], shell=True)
+	nics = yaml.load(nicInfo)
+	#print nics
+	nics = nics["networkProfile"]["networkInterfaces"]
+	i = 0
+	for nic in nics:
+		nicName = acs_get_id(nic)
+		print "Nic Name: "+nicName
+		if (i==0):
+			nicDefault = nicName
+		ipconfigInfo = subprocess.check_output("az network nic show --resource-group="+config["resource_group"]+" --name="+nicName, shell=True)
+		ipConfigs = yaml.load(ipconfigInfo)
+		ipConfigs = ipConfigs["ipConfigurations"]
+		j = 0
+		for ipConfig in ipConfigs:
+			ipConfigName = acs_get_id(ipConfig)
+			print "IP Config Name: "+ipConfigName
+			if ((i==0) and (j==0)):
+				ipConfigDefault = ipConfigName
+			configInfo = subprocess.check_output("az network nic ip-config show --resource-group="+config["resource_group"]+
+													" --nic-name="+nicName+" --name="+ipConfigName, shell=True)
+			configInfo = yaml.load(configInfo)
+			publicIP = configInfo["publicIpAddress"]
+			if (not (publicIP is None)):
+				ipName = acs_get_id(publicIP)
+				print "IP Name: " + ipName
+				return {"nic" : nicName, "ipconfig" : ipConfigName, "publicipname" : ipName, "publicip" : acs_get_ip(ipName)}
+			j+=1
+		i+=1
+	return {"nic" : nicDefault, "ipconfig": ipConfigDefault, "publicipname" : None, "publicip" : None}
+
+def acs_get_machinesAndIPs(bCreateIP):
+	# Public IP on worker nodes
+	nodeInfo = subprocess.check_output('kubectl -o=json --kubeconfig=./deploy/acs_kubeclusterconfig get nodes', shell=True)
+	nodes = yaml.load(nodeInfo)
+	ipInfo = {}
+	#print nodes["items"]
+	for n in nodes["items"]:
+		machineName = n["metadata"]["name"]
+		ipInfo[machineName] = acs_get_machineIP(machineName)
+		if bCreateIP and (ipInfo[machineName]["publicip"] is None):
+			# Create IP
+			ipName = machineName+"-public-ip-0"
+			print "Creating public-IP: "+ipName
+			cmd = "az network public-ip create --allocation-method=Dynamic"
+			cmd += " --resource-group=%s" % config["resource_group"]
+			cmd += " --name=%s" % ipName
+			cmd += " --location=%s" % config["cluster_location"]
+			os.system(cmd)
+			# Add to NIC of machine
+			cmd = "az network nic ip-config update"
+			cmd += " --resource-group=%s" % config["resource_group"]
+			cmd += " --nic-name=%s" % ipInfo[machineName]["nic"]
+			cmd += " --name=%s" % ipInfo[machineName]["ipconfig"]
+			cmd += " --public-ip-address=%s" % ipName
+			os.system(cmd)
+			# now update
+			ipInfo[machineName]["publicipname"] = ipName
+			ipInfo[machineName]["publicip"] = acs_get_ip(ipName)
+	return ipInfo
+
 def deploy_acs():
+	regenerate_key = False
 	if (os.path.isfile("./deploy/sshkey")):
 		response = raw_input_with_default("SSH keys already exist, do you want to keep existing (y/n)?")
 		if first_char(response) == "n":
@@ -1465,7 +1541,12 @@ def deploy_acs():
 		else:
 			regenerate_key = False
 
-    cmd = "az acs create --orchestrator-type=kubernetes"
+	cmd = "az group create"
+	cmd += " --location=%s" % config["cluster_location"]
+	cmd += " --name=%s" % config["resource_group"]
+	os.system(cmd)
+
+	cmd = "az acs create --orchestrator-type=kubernetes"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --name=%s" % config["cluster_name"]
 	cmd += " --agent-count=%d" % config["worker_node_num"]
@@ -1482,19 +1563,11 @@ def deploy_acs():
 	cmd = "az acs kubernetes get-credentials"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --name=%s" % config["cluster_name"]
-	cmd += " --file=%s" % "./deploy/clusterconfig"
+	cmd += " --file=%s" % "./deploy/acs_kubeclusterconfig"
 	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
 	os.system(cmd)
 
-	# Public IP on worker nodes
-	
-
-
-	1987  az network public-ip create --name ip0 --resource-group=kubegroup1 --location=westus --allocation-method Static --dns-name kubegroup1-ip0
-1992  az network nic ip-config list --nic-name=k8s-agent-FFC9D5A9-nic-0 --resource-group=kubegroup1
-1994  az network nic ip-config update --nic-name k8s-agent-FFC9D5A9-nic-0 --name=ipconfig1 --resource-group=kubegroup1 --subnet=k8s-subnet  --vnet=k8s-vnet-FFC9D5A9 --public-ip-address=ip0
-
-
+	return acs_get_machinesAndIPs(True)
 
 def get_mount_fileshares(curNode = None):
 	allmountpoints = { }
@@ -2395,7 +2468,11 @@ def run_kube( prog, commands ):
 	nodes = get_ETCD_master_nodes(config["clusterId"])
 	master_node = random.choice(nodes)
 	one_command = " ".join(commands)
-	kube_command = ("%s --server=https://%s:%s --certificate-authority=%s --client-key=%s --client-certificate=%s %s" % (prog, master_node, config["k8sAPIport"], "./deploy/ssl/ca/ca.pem", "./deploy/ssl/kubelet/apiserver-key.pem", "./deploy/ssl/kubelet/apiserver.pem", one_command) )
+	kube_command = ""
+	if (os.path.exists("./deploy/acs_kubeclusterconfig")):
+		kube_command = "%s --kubeconfig=./deploy/acs_kubeclusterconfig %s" % (prog, one_command)
+	else:
+		kube_command = ("%s --server=https://%s:%s --certificate-authority=%s --client-key=%s --client-certificate=%s %s" % (prog, master_node, config["k8sAPIport"], "./deploy/ssl/ca/ca.pem", "./deploy/ssl/kubelet/apiserver-key.pem", "./deploy/ssl/kubelet/apiserver.pem", one_command) )
 	if verbose:
 		print kube_command
 	os.system(kube_command)
@@ -3025,8 +3102,18 @@ def run_command( args, command, nargs, parser ):
 	elif command == "azure":
 		deploy_azure()
 
-	elif command = "acs":
-		deploy_acs()
+	elif command == "acs":
+		if (len(nargs) >= 1):
+			if nargs[0]=="deploy":
+				deploy_acs()
+			elif nargs[0]=="getip":
+				ip = acs_get_machinesAndIPs(False)
+				print ip
+			elif nargs[0]=="createip":
+				ip = acs_get_machinesAndIPs(True)
+				print ip
+			elif nargs[0]=="delete":
+				os.system("az acs delete --resource-group="+config["resource_group"]+" --name="+config["cluster_name"])
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
