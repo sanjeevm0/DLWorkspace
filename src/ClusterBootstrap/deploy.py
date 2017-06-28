@@ -1585,7 +1585,7 @@ def acs_get_machinesAndIPsFast():
 
 def deploy_acs():
 	regenerate_key = False
-	if (os.path.isfile("./deploy/sshkey")):
+	if (os.path.exists("./deploy/sshkey")):
 		response = raw_input_with_default("SSH keys already exist, do you want to keep existing (y/n)?")
 		if first_char(response) == "n":
 			utils.backup_keys(config["cluster_name"])
