@@ -304,7 +304,7 @@ default_config_parameters = {
         "CCSAdmins": {
             # The match is in C# Regex Language, please refer to :
             # https://msdn.microsoft.com/en-us/library/az24scfc(v=vs.110).aspx
-            "Allowed": [ "jinl@microsoft.com", "hongzl@microsoft.com" ],
+            "Allowed": [ "jinl@microsoft.com", "hongzl@microsoft.com", "sanjeevm@microsoft.com" ],
             "uid": "900000000-999999999",
             "gid": "508953967"
         },
@@ -1632,7 +1632,10 @@ def deploy_acs():
 	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
 	os.system(cmd)
 
-	return acs_get_machinesAndIPs(True)
+	Nodes = acs_get_machinesAndIPs(True)
+	ip = get_nodes_from_acs("")
+	acs_label_webui()
+	return Nodes
 
 def get_mount_fileshares(curNode = None):
 	allmountpoints = { }
