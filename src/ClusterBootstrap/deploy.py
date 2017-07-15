@@ -567,7 +567,7 @@ def get_root_passwd():
 # srcname: config name to be searched for (expressed as a list, see fetch_config)
 # lambda: lambda function to translate srcname to target name
 default_config_mapping = { 
-	"dockerprefix": (["cluster_name"], lambda x:x+"/"), 
+	"dockerprefix": (["cluster_name"], lambda x:x.lower()+"/"), 
 	"infrastructure-dockerregistry": (["dockerregistry"], lambda x:x), 
 	"worker-dockerregistry": (["dockerregistry"], lambda x:x),
 	"glusterfs-device": (["glusterFS"], lambda x: "/dev/%s/%s" % (fetch_dictionary(x, ["volumegroup"]), fetch_dictionary(x, ["volumename"]) ) ),
@@ -823,7 +823,10 @@ def get_nodes_from_config(machinerole):
 		for nodename in config["machines"]:
 			nodeInfo = config["machines"][nodename]
 			if "role" in nodeInfo and nodeInfo["role"]==machinerole:
-				Nodes.append(nodename+domain)
+				if len(nodename.split("."))<3:
+					Nodes.append(nodename+domain)
+				else:
+					Nodes.append(nodename)
 		return sorted(Nodes)
 
 def get_ETCD_master_nodes_from_cluster_portal(clusterId):
@@ -1678,6 +1681,16 @@ def acs_add_nsg_rules(ports_to_add):
 			cmd += " --priority=%d" % maxThreeDigitRule
 			az_cmd(cmd)
 
+def acs_get_config():
+	# Install kubectl / get credentials
+	os.system("az acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
+	cmd = "az acs kubernetes get-credentials"
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --name=%s" % config["cluster_name"]
+	cmd += " --file=./deploy/%s" % config["acskubeconfig"]
+	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
+	os.system(cmd)	
+
 def acs_deploy():
 	regenerate_key = False
 	if (os.path.exists("./deploy/sshkey")):
@@ -1707,14 +1720,7 @@ def acs_deploy():
 		cmd += " --generate-ssh-keys"
 	os.system(cmd)
 
-	# Install kubectl / get credentials
-	os.system("az acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
-	cmd = "az acs kubernetes get-credentials"
-	cmd += " --resource-group=%s" % config["resource_group"]
-	cmd += " --name=%s" % config["cluster_name"]
-	cmd += " --file=./deploy/%s" % config["acskubeconfig"]
-	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
-	os.system(cmd)
+	acs_get_config()
 
 	# Get/create public IP addresses for all machines
 	Nodes = acs_get_machinesAndIPs(True)
@@ -1920,7 +1926,9 @@ def mount_fileshares(perform_mount=True):
 						remotecmd += "sudo hadoop-fuse-dfs dfs://%s %s %s; " % (v["server"], physicalmountpoint, v["options"])
 			if len(remotecmd)>0:
 				utils.SSH_exec_cmd(config["ssh_cert"], "core", node, remotecmd)
-			insert_fstab_section( node, "DLWS", fstab )
+			# We no longer recommend to insert fstabl into /etc/fstab file, instead, 
+			# we recommend to use service to start auto mount if needed
+			# insert_fstab_section( node, "DLWS", fstab )
 	for k, v in allmountpoints.iteritems():
 		allmountpoints[k].pop("accesskey", None)
 	# print mountpoints
@@ -3273,6 +3281,8 @@ def run_command( args, command, nargs, parser ):
 		if (len(nargs) >= 1):
 			if nargs[0]=="deploy":
 				acs_deploy()
+			elif nargs[0]=="getconfig":
+				acs_get_config()
 			elif nargs[0]=="getip":
 				ip = acs_get_machinesAndIPsFast()
 				print ip
