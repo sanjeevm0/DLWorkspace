@@ -1683,7 +1683,8 @@ def acs_add_nsg_rules(ports_to_add):
 
 def acs_get_config():
 	# Install kubectl / get credentials
-	os.system("az acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
+	if not (os.path.exists('./deploy/bin/kubectl')):
+		os.system("az acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
 	cmd = "az acs kubernetes get-credentials"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --name=%s" % config["cluster_name"]
