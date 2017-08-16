@@ -34,6 +34,7 @@ sys.path.append("../utils")
 import utils
 from DockerUtils import push_one_docker, build_dockers, push_dockers, run_docker, find_dockers, build_docker_fullname, copy_from_docker_image
 import k8sUtils
+from config import config as k8sconfig
 
 sys.path.append("../docker-images/glusterfs")
 import launch_glusterfs
@@ -1461,9 +1462,15 @@ def deploy_restful_API_on_node(ipAddress):
 	utils.sudo_scp(config["ssh_cert"],"./deploy/RestfulAPI/config.yaml","/etc/RestfulAPI/config.yaml", "core", masterIP )
 	utils.sudo_scp(config["ssh_cert"],"./deploy/master/restapi-kubeconfig.yaml","/etc/kubernetes/restapi-kubeconfig.yaml", "core", masterIP )
 
+	if config["isacs"]:
+		# copy needed keys
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kubernetes/certs/apiserver.crt", "/etc/kubernetes/ssl/apiserver.pem")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kubernetes/certs/apiserver.key", "/etc/kubernetes/ssl/apiserver-key.pem")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kuebrnetes/certs/ca.crt", "/etc/kubernetes/ssl/ca.crt")
+		# overwrite ~/.kube/config (mounted from /etc/kubernetes/restapi-kubeconfig.yaml)
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /home/core/.kube/config /etc/kubernetes/restapi-kubeconfig.yaml")
 
 	# utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /dlws-data && sudo mount %s /dlws-data ; docker rm -f restfulapi; docker rm -f jobScheduler ; docker pull %s ; docker run -d -p %s:80 --restart always -v /etc/RestfulAPI:/RestfulAPI --name restfulapi %s ; docker run -d -v /dlws-data:/dlws-data -v /etc/RestfulAPI:/RestfulAPI -v /etc/kubernetes/restapi-kubeconfig.yaml:/root/.kube/config -v /etc/kubernetes/ssl:/etc/kubernetes/ssl --restart always --name jobScheduler %s /runScheduler.sh ;" % (config["nfs-server"], dockername,config["restfulapiport"],dockername,dockername))
-
 
 	print "==============================================="
 	print "restful api is running at: http://%s:%s" % (masterIP,config["restfulapiport"])
@@ -3281,7 +3288,8 @@ def run_command( args, command, nargs, parser ):
 		deploy_azure()
 
 	elif command == "acs":
-		config["kubelet-path"] = "./deploy/bin/kubectl --kubeconfig=./deploy/%s" % (config["acskubeconfig"])
+		k8sconfig["kubelet-path"] = "./deploy/bin/kubectl --kubeconfig=./deploy/%s" % (config["acskubeconfig"])
+		#print "Config: " + k8sconfig["kubelet-path"]
 		if (len(nargs) >= 1):
 			if nargs[0]=="deploy":
 				acs_deploy()
@@ -3301,7 +3309,7 @@ def run_command( args, command, nargs, parser ):
 			elif nargs[0]=="restartwebui":
 				run_script_blocks(scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
-				print "Address: =" + k8sUtils.GetServiceAddress(nargs[1])				
+				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
