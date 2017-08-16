@@ -33,6 +33,7 @@ sys.path.append("../utils")
 
 import utils
 from DockerUtils import push_one_docker, build_dockers, push_dockers, run_docker, find_dockers, build_docker_fullname, copy_from_docker_image
+import k8sUtils
 
 sys.path.append("../docker-images/glusterfs")
 import launch_glusterfs
@@ -1690,6 +1691,7 @@ def acs_get_config():
 	cmd += " --name=%s" % config["cluster_name"]
 	cmd += " --file=./deploy/%s" % config["acskubeconfig"]
 	cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
+	print "Cmd " + cmd
 	os.system(cmd)	
 
 def acs_deploy():
@@ -3279,6 +3281,7 @@ def run_command( args, command, nargs, parser ):
 		deploy_azure()
 
 	elif command == "acs":
+		config["kubelet-path"] = "./deploy/bin/kubectl --kubeconfig=./deploy/%s" % (config["acskubeconfig"])
 		if (len(nargs) >= 1):
 			if nargs[0]=="deploy":
 				acs_deploy()
@@ -3297,6 +3300,8 @@ def run_command( args, command, nargs, parser ):
 				acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000})
 			elif nargs[0]=="restartwebui":
 				run_script_blocks(scriptblocks["restartwebui"])
+			elif nargs[0]=="getserviceaddr":
+				print "Address: =" + k8sUtils.GetServiceAddress(nargs[1])				
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
