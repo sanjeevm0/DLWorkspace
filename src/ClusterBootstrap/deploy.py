@@ -1692,6 +1692,7 @@ def acs_add_nsg_rules(ports_to_add):
 def acs_get_config():
 	# Install kubectl / get credentials
 	if not (os.path.exists('./deploy/bin/kubectl')):
+		os.system("mkdir -p ./deploy/bin")
 		os.system("az acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
 	cmd = "az acs kubernetes get-credentials"
 	cmd += " --resource-group=%s" % config["resource_group"]
@@ -1710,6 +1711,8 @@ def acs_deploy():
 			regenerate_key = True
 		else:
 			regenerate_key = False
+	else:
+		regenerate_key = True
 
 	cmd = "az group create"
 	cmd += " --location=%s" % config["cluster_location"]
@@ -1728,6 +1731,7 @@ def acs_deploy():
 	if (regenerate_key):			
 		os.system("rm -r ./deploy/sshkey || true")
 		cmd += " --generate-ssh-keys"
+	print "Deployment CMD: " + cmd
 	os.system(cmd)
 
 	acs_get_config()
