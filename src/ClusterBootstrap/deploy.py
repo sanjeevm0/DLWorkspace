@@ -650,6 +650,13 @@ def add_ssh_key():
 def add_acs_config():
 	if (os.path.exists("./deploy/"+config["acskubeconfig"])):
 		config["isacs"] = True
+		if (not os.path.exists('./deploy/clusterID.yml')):
+			clusterId = {}
+			clusterId["clusterId"] = str(uuid.uuid4())
+			with open('./deploy/clusterID.yml', 'w') as f:
+				f.write(yaml.dump(clusterId))
+			config["clusterId"] = utils.get_cluster_ID_from_file()	
+			print "Cluster ID is " + config["clusterId"]	
 			
 # Render scripts for kubenete nodes
 def add_kubelet_config():
