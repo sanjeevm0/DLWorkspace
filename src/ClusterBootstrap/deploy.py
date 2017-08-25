@@ -656,7 +656,8 @@ def add_acs_config():
 			with open('./deploy/clusterID.yml', 'w') as f:
 				f.write(yaml.dump(clusterId))
 			config["clusterId"] = utils.get_cluster_ID_from_file()	
-			print "Cluster ID is " + config["clusterId"]	
+			print "Cluster ID is " + config["clusterId"]
+		config["etcd_node_num"] = config["master_node_num"]
 			
 # Render scripts for kubenete nodes
 def add_kubelet_config():
@@ -1471,11 +1472,12 @@ def deploy_restful_API_on_node(ipAddress):
 
 	if config["isacs"]:
 		# copy needed keys
-		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kubernetes/certs/apiserver.crt", "/etc/kubernetes/ssl/apiserver.pem")
-		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kubernetes/certs/apiserver.key", "/etc/kubernetes/ssl/apiserver-key.pem")
-		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /etc/kuebrnetes/certs/ca.crt", "/etc/kubernetes/ssl/ca.crt")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /etc/kubernetes/ssl")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/apiserver.crt /etc/kubernetes/ssl/apiserver.pem")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/apiserver.key /etc/kubernetes/ssl/apiserver-key.pem")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kuebrnetes/certs/ca.crt /etc/kubernetes/ssl/ca.crt")
 		# overwrite ~/.kube/config (mounted from /etc/kubernetes/restapi-kubeconfig.yaml)
-		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "cp /home/core/.kube/config /etc/kubernetes/restapi-kubeconfig.yaml")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /home/core/.kube/config /etc/kubernetes/restapi-kubeconfig.yaml")
 
 	# utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /dlws-data && sudo mount %s /dlws-data ; docker rm -f restfulapi; docker rm -f jobScheduler ; docker pull %s ; docker run -d -p %s:80 --restart always -v /etc/RestfulAPI:/RestfulAPI --name restfulapi %s ; docker run -d -v /dlws-data:/dlws-data -v /etc/RestfulAPI:/RestfulAPI -v /etc/kubernetes/restapi-kubeconfig.yaml:/root/.kube/config -v /etc/kubernetes/ssl:/etc/kubernetes/ssl --restart always --name jobScheduler %s /runScheduler.sh ;" % (config["nfs-server"], dockername,config["restfulapiport"],dockername,dockername))
 
