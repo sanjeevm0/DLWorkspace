@@ -658,6 +658,13 @@ def add_acs_config():
 			config["clusterId"] = utils.get_cluster_ID_from_file()	
 			print "Cluster ID is " + config["clusterId"]
 		config["etcd_node_num"] = config["master_node_num"]
+		try:
+			if not ("accesskey" in config["mountpoints"]["rootshare"]):
+				azureKey = acs_get_storage_key()
+				print "ACS Storage Key: " + azureKey
+				config["mountpoints"]["rootshare"]["accesskey"] = azureKey
+		except:
+			()
 			
 # Render scripts for kubenete nodes
 def add_kubelet_config():
@@ -1756,6 +1763,33 @@ def acs_deploy():
 	acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000})
 
 	return Nodes
+
+def acs_get_storage_key():
+	cmd = "storage account keys list"
+	cmd += " --account-name=%s" % config["mountpoints"]["rootshare"]["accountname"]
+	cmd += " --resource-group=%s" % config["resource_group"]
+	#print "Cmd: az " + cmd
+	keys = az_cmd(cmd)
+	return keys[0]["value"]	
+
+def acs_create_storage():
+	# Create storage account
+	cmd = "az storage account create"
+	cmd += " --name=%s" % config["mountpoints"]["rootshare"]["accountname"]
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --sku=%s" % "Standard_LRS"
+	print "Cmd: " + cmd
+	os.system(cmd)
+	# Create file share
+	azureKey = acs_get_storage_key()
+	config["mountpoints"]["rootshare"]["accesskey"] = azureKey
+	cmd = "az storage share create"
+	cmd += " --name=%s" % config["mountpoints"]["rootshare"]["filesharename"]
+	cmd += " --quota=2048"
+	cmd += " --account-name=%s" % config["mountpoints"]["rootshare"]["accountname"]
+	cmd += " --account-key=%s" % azureKey
+	print "Cmd: " + cmd
+	os.system(cmd)
 
 def get_mount_fileshares(curNode = None):
 	allmountpoints = { }
@@ -3323,6 +3357,10 @@ def run_command( args, command, nargs, parser ):
 				run_script_blocks(scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
 				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
+			elif nargs[0]=="storage":
+				acs_create_storage()
+			elif nargs[0]=="openjobports":
+				acs_add_nsg_rules({"AllJobAllow" : "1-65535"})
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
