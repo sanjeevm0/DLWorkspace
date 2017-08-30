@@ -892,7 +892,11 @@ def get_ETCD_master_nodes_from_config(clusterId):
 	return Nodes
 
 def get_nodes_from_acs(tomatch):
-	machines = acs_get_machinesAndIPsFast()
+	if not ("acsnodes" in config):
+		machines = acs_get_machinesAndIPsFast()
+		config["acsnodes"] = machines
+	else:
+		machines = config["acsnodes"]
 	Nodes = []
 	masterNodes = []
 	agentNodes = []
@@ -2004,6 +2008,11 @@ def fileshare_install():
 	for node in nodes:
 		allmountpoints, fstab = get_mount_fileshares(node)
 		remotecmd = ""
+		if (config["isacs"]):
+			# when started, ACS machines don't have PIP which is needed to install pyyaml
+			# pyyaml is needed by auto_share.py to load mounting.yaml
+			remotecmd += "sudo apt-get -y install python-pip; "
+			remotecmd += "pip install pyyaml; "
 		filesharetype = {}
 		# In service, the mount preparation install relevant software on remote machine. 
 		for k,v in allmountpoints.iteritems():
@@ -2070,6 +2079,7 @@ def mount_fileshares_by_service(perform_mount=True):
 			remotecmd += "sudo systemctl enable auto_share.timer; "
 			remotecmd += "sudo systemctl restart auto_share.timer; "
 			remotecmd += "sudo systemctl stop auto_share.service; "
+			#remotecmd += "sudo " + os.path.join(config["folder_auto_share"], "auto_share.py") + "; " # run it at least once
 			if len(remotecmd)>0:
 				utils.SSH_exec_cmd(config["ssh_cert"], "core", node, remotecmd)
 			# We no longer recommend to insert fstabl into /etc/fstab file, instead, 
@@ -2125,7 +2135,7 @@ def link_fileshares(allmountpoints, bForce=False):
 						for basename in v["mountpoints"]:
 							dirname = os.path.join(v["curphysicalmountpoint"], basename )
 							remotecmd += "sudo rm %s; " % dirname
-				remotecmd += "sudo rm %s; " % config["storage-mount-path"]
+				remotecmd += "sudo rm -r %s; " % config["storage-mount-path"]
 				remotecmd += "sudo mkdir -p %s; " % config["storage-mount-path"]
 				
 			output = utils.SSH_exec_cmd_with_output(config["ssh_cert"], "core", node, "sudo mount" )
@@ -2813,14 +2823,17 @@ def run_kubectl( commands ):
 	run_kube( "./deploy/bin/kubectl", commands)
 	
 def kubernetes_get_node_name(node):
-	domain = get_domain()
-	if len(domain) < 2: 
-		return node
-	elif domain in node:
-		# print "Remove domain %d" % len(domain)
-		return node[:-(len(domain))]
+	if config["isacs"]:
+		return config["nodenames_from_ip"][node]
 	else:
-		return node
+		domain = get_domain()
+		if len(domain) < 2: 
+			return node
+		elif domain in node:
+			# print "Remove domain %d" % len(domain)
+			return node[:-(len(domain))]
+		else:
+			return node
 
 def set_zookeeper_cluster():
 	nodes = get_node_lists_for_service("zookeeper")
