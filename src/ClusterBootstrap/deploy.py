@@ -16,6 +16,7 @@ import shutil
 import random
 import glob
 import copy
+import numbers
 
 from os.path import expanduser
 
@@ -1745,32 +1746,43 @@ def acs_add_nsg_rules(ports_to_add):
 
 	for port_rule in ports_to_add:
 		port_num = ports_to_add[port_rule]
-		found_port = None
-		for rule in rules:
-			if acs_is_valid_nsg_rule(rule):
-				match = re.match('(.*)-(.*)', rule["destinationPortRange"])
-				if (match is None):
-					minPort = int(rule["destinationPortRange"])
-					maxPort = minPort
-				elif (rule["destinationPortRange"] != "*"):
-					minPort = int(match.group(1))
-					maxPort = int(match.group(2))
-				else:
-					minPort = -1
-					maxPort = -1
-				if (minPort <= port_num) and (port_num <= maxPort):
-					found_port = rule["name"]
-					break
-		if not (found_port is None):
-			print "Rule for %s : %d -- already satisfied by %s" % (port_rule, port_num, found_port)
-		else:
+		createRule = True
+		isNum = isinstance(port_num, numbers.Number)
+		if (not isNum) and port_num.isdigit():
+			port_num = int(port_num)
+			isNum = True
+		if isNum:
+			# check for existing rules
+			found_port = None
+			for rule in rules:
+				if acs_is_valid_nsg_rule(rule):
+					match = re.match('(.*)-(.*)', rule["destinationPortRange"])
+					if (match is None):
+						minPort = int(rule["destinationPortRange"])
+						maxPort = minPort
+					elif (rule["destinationPortRange"] != "*"):
+						minPort = int(match.group(1))
+						maxPort = int(match.group(2))
+					else:
+						minPort = -1
+						maxPort = -1
+					if (minPort <= port_num) and (port_num <= maxPort):
+						found_port = rule["name"]
+						break
+			if not (found_port is None):
+				print "Rule for %s : %d -- already satisfied by %s" % (port_rule, port_num, found_port)
+				createRule = False
+		if createRule:
 			maxThreeDigitRule = maxThreeDigitRule + 10
 			cmd = "network nsg rule create"
 			cmd += " --resource-group=%s" % config["resource_group"]
 			cmd += " --nsg-name=%s" % nsg_name
 			cmd += " --name=%s" % port_rule
 			cmd += " --access=Allow"
-			cmd += " --destination-port-range=%d" % port_num
+			if isNum:
+				cmd += " --destination-port-range=%d" % port_num
+			else:
+				cmd += " --destination-port-range=%s" % port_num
 			cmd += " --direction=Inbound"
 			cmd += " --priority=%d" % maxThreeDigitRule
 			az_cmd(cmd)
@@ -1860,6 +1872,16 @@ def acs_create_storage():
 	cmd += " --account-key=%s" % azureKey
 	print "Cmd: " + cmd
 	os.system(cmd)
+
+def acs_get_jobendpt(jobId):
+	get_nodes_from_acs("")
+	addr = k8sUtils.GetServiceAddress(jobId)
+	#print addr
+	#print config["acsnodes"]
+	ip = config["acsnodes"][addr[0]['hostName']]['publicip']
+	port = addr[0]['hostPort']
+	ret = "http://%s:%s" % (ip, port)
+	print ret
 
 def get_mount_fileshares(curNode = None):
 	allmountpoints = { }
@@ -3487,15 +3509,15 @@ def run_command( args, command, nargs, parser ):
 				ip = get_nodes_from_acs("")
 				acs_label_webui()
 			elif nargs[0]=="openports":
-				acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000})
+				acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
 			elif nargs[0]=="restartwebui":
 				run_script_blocks(scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
 				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
 			elif nargs[0]=="storage":
 				acs_create_storage()
-			elif nargs[0]=="openjobports":
-				acs_add_nsg_rules({"AllJobAllow" : "1-65535"})
+			elif nargs[0]=="jobendpt":
+				acs_get_jobendpt(nargs[1])
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
