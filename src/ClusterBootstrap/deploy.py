@@ -82,6 +82,7 @@ default_config_parameters = {
 	# Default port for WebUI, Restful API, 
 	"webuiport" : "80",
 	"restfulapiport" : "5000",
+	"restfulapi" : "restfulapi",
 	"ssh_cert" : "./deploy/sshkey/id_rsa",
 
 	# the path of where dfs/nfs is source linked and consumed on each node, default /dlwsdata
