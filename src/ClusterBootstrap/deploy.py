@@ -1891,7 +1891,8 @@ def acs_create_storage():
 def acs_install_gpu():
 	nodes = get_worker_nodes(config["clusterId"])
 	for node in nodes:
-		exec_rmt_cmd(node, "curl -L -sf https://raw.githubusercontent.com/ritazh/acs-k8s-gpu/master/install-nvidia-driver.sh | sudo sh")
+		#exec_rmt_cmd(node, "curl -L -sf https://raw.githubusercontent.com/ritazh/acs-k8s-gpu/master/install-nvidia-driver.sh | sudo sh")
+		run_script(node, ["./scripts/prepare_acs.sh"], True)
 
 def acs_get_jobendpt(jobId):
 	get_nodes_from_acs("")
