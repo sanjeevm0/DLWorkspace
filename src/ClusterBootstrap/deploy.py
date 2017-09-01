@@ -691,7 +691,7 @@ def add_acs_config():
 		try:
 			if not ("accesskey" in config["mountpoints"]["rootshare"]):
 				azureKey = acs_get_storage_key()
-				print "ACS Storage Key: " + azureKey
+				#print "ACS Storage Key: " + azureKey
 				config["mountpoints"]["rootshare"]["accesskey"] = azureKey
 		except:
 			()
@@ -1631,6 +1631,18 @@ def acs_get_ip(ipaddrName):
 	ipInfo = yaml.load(ipInfo)
 	return ipInfo["ipAddress"]
 
+def acs_attach_dns_name():
+	get_nodes_from_acs("")
+	firstMasterNode = config["kubernetes_master_node"][0]
+	masterNodeName = config["nodenames_from_ip"][firstMasterNode]
+	ipname = config["acsnodes"][masterNodeName]["publicipname"]
+	cmd = "az network public-ip update"
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --name=%s" % ipname
+	cmd += " --dns-name=%s" % config["master_dns_name"]
+	print "Cmd: " + cmd
+	os.system(cmd)
+
 def acs_get_machineIP(machineName):
 	print "Machine: "+machineName
 	nicInfo = subprocess.check_output("az vm show --name="+machineName+" --resource-group="+config["resource_group"], shell=True)
@@ -1858,6 +1870,9 @@ def acs_deploy():
 
 	# Add rules for NSG
 	acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
+
+	# Attach DNS name to master
+	acs_attach_dns_name()
 
 	return Nodes
 
@@ -3560,6 +3575,8 @@ def run_command( args, command, nargs, parser ):
 				acs_install_gpu()
 			elif nargs[0]=="jobendpt":
 				acs_get_jobendpt(nargs[1])
+			elif nargs[0]=="dns":
+				acs_attach_dns_name()
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
