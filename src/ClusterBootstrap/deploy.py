@@ -1803,7 +1803,7 @@ def acs_get_machineIP(machineName):
 		if (i==0):
 			nicDefault = nicName
 		ipconfigs = az_cmd("network nic show --resource-group="+config["resource_group"]+" --name="+nicName)
-		ipConfigs = ipConfigs["ipConfigurations"]
+		ipConfigs = ipconfigs["ipConfigurations"]
 		j = 0
 		for ipConfig in ipConfigs:
 			ipConfigName = acs_get_id(ipConfig)
