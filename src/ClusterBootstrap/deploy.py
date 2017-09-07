@@ -944,15 +944,17 @@ def get_nodes_from_acs(tomatch=""):
 		machines = acs_get_machinesAndIPsFast()
 		config["acsnodes"] = machines
 	else:
-		bFindNodes = not (tomatch == "")
+		bFindNodes = not (tomatch == "" or tomatch == "master" or tomatch == "agent")
 		machines = config["acsnodes"]
 	Nodes = []
 	if bFindNodes:
 		masterNodes = []
 		agentNodes = []
+		allNodes = []
 		for m in machines:
 			match = re.match('k8s-'+tomatch+'.*', m)
 			ip = machines[m]["publicip"]
+			allNodes.append(ip)
 			if not (match is None):
 				Nodes.append(ip)
 			match = re.match('k8s-master', m)
@@ -964,6 +966,16 @@ def get_nodes_from_acs(tomatch=""):
 		config["etcd_node"] = masterNodes
 		config["kubernetes_master_node"] = masterNodes
 		config["worker_node"] = agentNodes
+		config["all_node"] = allNodes
+	else:
+		if tomatch == "":
+			Nodes = config["all_node"]
+		elif tomatch == "master":
+			Nodes = config["kubernetes_master_node"]
+		elif tomatch == "agent":
+			Nodes = config["worker_node"]
+		else:
+			raise Exception("Wrong matching")
 	return Nodes
 
 def get_ETCD_master_nodes(clusterId):
