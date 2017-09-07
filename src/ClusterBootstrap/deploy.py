@@ -939,28 +939,31 @@ def get_ETCD_master_nodes_from_config(clusterId):
 	return Nodes
 
 def get_nodes_from_acs(tomatch=""):
+	bFindNodes = True
 	if not ("acsnodes" in config):
 		machines = acs_get_machinesAndIPsFast()
 		config["acsnodes"] = machines
 	else:
+		bFindNodes = not (tomatch == "")
 		machines = config["acsnodes"]
 	Nodes = []
-	masterNodes = []
-	agentNodes = []
-	for m in machines:
-		match = re.match('k8s-'+tomatch+'.*', m)
-		ip = machines[m]["publicip"]
-		if not (match is None):
-			Nodes.append(ip)
-		match = re.match('k8s-master', m)
-		if not (match is None):
-			masterNodes.append(ip)
-		match = re.match('k8s-agent', m)
-		if not (match is None):
-			agentNodes.append(ip)
-	config["etcd_node"] = masterNodes
-	config["kubernetes_master_node"] = masterNodes
-	config["worker_node"] = agentNodes
+	if bFindNodes:
+		masterNodes = []
+		agentNodes = []
+		for m in machines:
+			match = re.match('k8s-'+tomatch+'.*', m)
+			ip = machines[m]["publicip"]
+			if not (match is None):
+				Nodes.append(ip)
+			match = re.match('k8s-master', m)
+			if not (match is None):
+				masterNodes.append(ip)
+			match = re.match('k8s-agent', m)
+			if not (match is None):
+				agentNodes.append(ip)
+		config["etcd_node"] = masterNodes
+		config["kubernetes_master_node"] = masterNodes
+		config["worker_node"] = agentNodes
 	return Nodes
 
 def get_ETCD_master_nodes(clusterId):
@@ -1696,6 +1699,7 @@ def deploy_on_nodes(prescript, listOfFiles, postscript, nodes):
 
 # addons
 def kube_master0_wait():
+	get_nodes_from_acs()
 	node = config["kubernetes_master_node"][0]
 	exec_rmt_cmd(node, "until curl -q http://127.0.0.1:8080/version/ ; do sleep 5; echo 'waiting for master...'; done")
 	return node
@@ -1722,6 +1726,15 @@ def az_sys(cmd):
 	if verbose:
 		print "az "+cmd
 	os.system("az "+cmd)
+
+def az_tryutil(cmd, stopFn, waitPeriod=5):
+	while not stopFn():
+		try:
+			az_sys(cmd)
+		except:
+			pass
+		if not stopFn():
+			time.sleep(waitPeriod)
 
 # Create SQL database
 def az_create_sql_server():
@@ -1786,7 +1799,7 @@ def acs_get_ip(ipaddrName):
 	return ipInfo["ipAddress"]
 
 def acs_attach_dns_name():
-	get_nodes_from_acs("")
+	get_nodes_from_acs()
 	firstMasterNode = config["kubernetes_master_node"][0]
 	masterNodeName = config["nodenames_from_ip"][firstMasterNode]
 	ipname = config["acsnodes"][masterNodeName]["publicipname"]
@@ -1959,14 +1972,14 @@ def acs_get_config():
 	# Install kubectl / get credentials
 	if not (os.path.exists('./deploy/bin/kubectl')):
 		os.system("mkdir -p ./deploy/bin")
-		az_sys("acs kubernetes install-cli --install-location ./deploy/bin/kubectl")
+		az_tryuntil("acs kubernetes install-cli --install-location ./deploy/bin/kubectl", lambda : os.path.exists('./deploy/bin/kubectl'))
 	if not (os.path.exists('./deploy/'+config["acskubeconfig"])):
 		cmd = "acs kubernetes get-credentials"
 		cmd += " --resource-group=%s" % config["resource_group"]
 		cmd += " --name=%s" % config["cluster_name"]
 		cmd += " --file=./deploy/%s" % config["acskubeconfig"]
 		cmd += " --ssh-key-file=%s" % "./deploy/sshkey/id_rsa"
-		az_sys(cmd)
+		az_tryuntil(cmd, lambda : os.path.exists("./deploy/%s" % config["acskubeconfig"]))
 
 def acs_deploy_addons():
 	kube_dpeloy_configchanges()
@@ -4026,4 +4039,6 @@ Command:
 			run_script_blocks( scriptblocks[nargs[0]])
 		else:
 			parser.print_help()
-			print "Error: Unknown sc
+			print "Error: Unknown scriptblocks " + nargs[0]
+	else:
+		run_command( args, command, nargs, parser)
