@@ -1642,12 +1642,14 @@ def pick_server( nodelists, curNode ):
 # AZ ACS commands
 
 def az_cmd(cmd):
-	print "az "+cmd
+	if verbose:
+		print "az "+cmd
 	output = subprocess.check_output("az "+cmd, shell=True)
 	return yaml.load(output)
 
 def az_sys(cmd):
-	print "az "+cmd
+	if verbose:
+		print "az "+cmd
 	os.system("az "+cmd)
 
 # Create SQL database
@@ -1685,11 +1687,11 @@ def az_create_sql():
 def acs_set_resource_grp():
 	resgrp = az_cmd("group show --name=%s" % config["resource_group"])
 	if (not resgrp is None):
-		machines = az_cmd("vm list --resource_group=%s" % config["resource_group"])
+		machines = az_cmd("vm list --resource-group=%s" % config["resource_group"])
 		if (len(machines)==0):
 			# try child resource group
 			tryGroup = "%s_%s_%s" % (config["resource_group"], config["cluster_name"], config["cluster_location"])
-			machines = az_cmd("vm list --resource_grou=%s" % tryGroup)
+			machines = az_cmd("vm list --resource-group=%s" % tryGroup)
 			if (len(machines) > 0):
 				# overwrite with group where machines are located
 				config["resource_group"] = tryGroup
