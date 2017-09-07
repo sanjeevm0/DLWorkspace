@@ -517,7 +517,8 @@ def _check_config_items(cnfitem, cnf):
 		print "Checking configurations '%s' = '%s'" % (cnfitem, cnf[cnfitem])
  
 def check_config(cnf):
-	_check_config_items("discovery_url",cnf)
+	if not config["isacs"]:
+		_check_config_items("discovery_url",cnf)
 	_check_config_items("kubernetes_master_node",cnf)
 	_check_config_items("kubernetes_master_ssh_user",cnf)
 	_check_config_items("api_servers",cnf)
@@ -672,8 +673,12 @@ def update_config():
 		config["coreosusebaseurl"] = ""
 	else:
 		config["coreosusebaseurl"] = "-b "+config["coreosbaseurl"]
-	
-	
+
+	for (cf, loc) in [('master', 'master'), ('worker', 'kubelet')]:
+		exec("config[\"%s_predeploy\"] = os.path.join(\"./deploy/%s\", config[\"pre%sdeploymentscript\"])" % (cf, loc, cf))
+		exec("config[\"%s_filesdeploy\"] = os.path.join(\"./deploy/%s\", config[\"%sdeploymentlist\"])" % (cf, loc, cf))
+		exec("config[\"%s_postdeploy\"] = os.path.join(\"./deploy/%s\", config[\"post%sdeploymentscript\"])" % (cf, loc, cf))
+
 def add_ssh_key():
 	keys = fetch_config(["sshKeys"])
 	if isinstance( keys, list ):
@@ -933,7 +938,7 @@ def get_ETCD_master_nodes_from_config(clusterId):
 	config["kubernetes_master_node"] = Nodes
 	return Nodes
 
-def get_nodes_from_acs(tomatch):
+def get_nodes_from_acs(tomatch=""):
 	if not ("acsnodes" in config):
 		machines = acs_get_machinesAndIPsFast()
 		config["acsnodes"] = machines
@@ -1661,14 +1666,14 @@ def rmt_cp(node, source, target):
 
 # copy list of files to a node
 def copy_list_of_files(listOfFiles, node):	
-	with open(list, "r") as f:
+	with open(listOfFiles, "r") as f:
 		copy_files = [s.split(",") for s in f.readlines() if len(s.split(",")) == 2]
 	for (source, target) in copy_files:
 		if (os.path.isfile(source.strip()) or os.path.exists(source.strip())):
 			rmt_cp(node, source, target)
 
 def copy_list_of_files_to_nodes(listOfFiles, nodes):
-	with open(list, "r") as f:
+	with open(listOfFiles, "r") as f:
 		copy_files = [s.split(",") for s in f.readlines() if len(s.split(",")) == 2]
 	for node in nodes:
 		for (source, target) in copy_files:
@@ -1967,6 +1972,24 @@ def acs_deploy_addons():
 	kube_dpeloy_configchanges()
 	kube_deploy_addons()
 
+# other config post deploy -- ACS cluster is complete
+# Run prescript, copyfiles, postscript
+def acs_post_deploy():
+	get_nodes_from_acs()
+	gen_configs()
+	utils.render_template_directory("./template/kubelet", "./deploy/kubelet", config)
+	write_nodelist_yaml()
+	# get CNI binary
+	get_cni_binary()
+	# deploy
+	#print config["master_predeploy"]
+	#print config["master_filesdeploy"]
+	#print config["master_postdeploy"]
+	deploy_on_nodes(config["master_predeploy"], config["master_filesdeploy"], config["master_postdeploy"], 
+		            config["kubernetes_master_node"])
+	deploy_on_nodes(config["worker_predeploy"], config["worker_filesdeploy"], config["worker_postdeploy"],
+	                config["worker_node"])
+
 def acs_deploy():
 	config["isacs"] = True
 	create_cluster_id()
@@ -2013,16 +2036,8 @@ def acs_deploy():
 	# Attach DNS name to master
 	acs_attach_dns_name()
 
-	# other config post deploy -- ACS cluster is complete
-	gen_configs()
-	write_nodelist_yaml()
-	# get CNI binary
-	get_cni_binary()
-	# deploy
-	deploy_on_nodes(config["premasterdeploymentscript"], config["masterdeploymentlist"], config["postmasterdeploymentscript"],
-				    config["kubernetes_master_node"])
-	deploy_on_nodes(config["preworkerdeploymentscript"], config["workerdeploymentlist"], config["postworkerdeploymentscript"],
-	                config["worker_node"])
+	# post ACS cluster deployment setup
+	acs_post_deploy()
 
 	return Nodes
 
@@ -3730,6 +3745,8 @@ def run_command( args, command, nargs, parser ):
 				acs_get_jobendpt(nargs[1])
 			elif nargs[0]=="dns":
 				acs_attach_dns_name()
+			elif nargs[0]=="postdeploy":
+				acs_post_deploy()
 			
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
@@ -4009,6 +4026,4 @@ Command:
 			run_script_blocks( scriptblocks[nargs[0]])
 		else:
 			parser.print_help()
-			print "Error: Unknown scriptblocks " + nargs[0]
-	else:
-		run_command( args, command, nargs, parser)
+			print "Error: Unknown sc
