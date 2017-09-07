@@ -1109,8 +1109,8 @@ def gen_configs():
 
 	#if len(kubernetes_masters) <= 0:
 	#	raise Exception("ERROR: we need at least one etcd_server.") 
-
-	config["discovery_url"] = utils.get_ETCD_discovery_URL(int(config["etcd_node_num"]))
+	if not config["isacs"]:
+		config["discovery_url"] = utils.get_ETCD_discovery_URL(int(config["etcd_node_num"]))
 
 	if "ssh_cert" not in config and os.path.isfile("./deploy/sshkey/id_rsa"):
 		config["ssh_cert"] = expand_path("./deploy/sshkey/id_rsa")
@@ -1650,6 +1650,9 @@ def pick_server( nodelists, curNode ):
 		return curNode
 
 # simple utils
+def shellquote(s):
+    return "'" + s.replace("'", "'\\''") + "'"
+
 def exec_rmt_cmd(node, cmd):
 	utils.SSH_exec_cmd(config["ssh_cert"], "core", node, cmd)
 
@@ -1717,15 +1720,17 @@ def az_sys(cmd):
 
 # Create SQL database
 def az_create_sql_server():
+	# escape the password in case it has characters such as "$"
+	pwd = shellquote(config["sqlserver-password"])
 	cmd = "sql server create"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --location=%s" % config["cluster_location"]
 	cmd += " --name=%s" % config["azure-sqlservername"]
 	cmd += " --admin-user=%s" % config["sqlserver-username"]
-	cmd += " --admin-password=%s" % config["sqlserver-password"]
+	cmd += " --admin-password=%s" % pwd
 	az_sys(cmd)
 	# now open firewall
-	cmd = "sql firewall-rule create"
+	cmd = "sql server firewall-rule create"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --server=%s" % config["azure-sqlservername"]
 	# first open all IPs
@@ -1740,6 +1745,7 @@ def az_create_sql_database(dbname):
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --server=%s" % config["azure-sqlservername"]
 	cmd += " --name=%s" % dbname
+	az_sys(cmd)
 
 def az_create_sql():
 	az_create_sql_server()
@@ -1962,9 +1968,8 @@ def acs_deploy_addons():
 	kube_deploy_addons()
 
 def acs_deploy():
-	create_cluster_id()
-	gen_configs()
 	config["isacs"] = True
+	create_cluster_id()
 
 	generate_key = not os.path.exists("./deploy/sshkey")
 
@@ -2008,7 +2013,8 @@ def acs_deploy():
 	# Attach DNS name to master
 	acs_attach_dns_name()
 
-	# other config post deploy
+	# other config post deploy -- ACS cluster is complete
+	gen_configs()
 	write_nodelist_yaml()
 	# get CNI binary
 	get_cni_binary()
@@ -2032,14 +2038,14 @@ def acs_create_storage():
 	cmd = "storage account create"
 	cmd += " --name=%s" % config["mountpoints"]["rootshare"]["accountname"]
 	cmd += " --resource-group=%s" % config["resource_group"]
-	cmd += " --sku=%s" % config["azstoragesku"]
+	cmd += " --sku=%s" % config["mountpoints"]["rootshare"]["azstoragesku"]
 	az_sys(cmd)
 	# Create file share
 	azureKey = acs_get_storage_key()
 	config["mountpoints"]["rootshare"]["accesskey"] = azureKey
 	cmd = "storage share create"
 	cmd += " --name=%s" % config["mountpoints"]["rootshare"]["filesharename"]
-	cmd += " --quota=%s" % config["filesharequota"]
+	cmd += " --quota=%s" % config["mountpoints"]["rootshare"]["filesharequota"]
 	cmd += " --account-name=%s" % config["mountpoints"]["rootshare"]["accountname"]
 	cmd += " --account-key=%s" % azureKey
 	az_sys(cmd)
