@@ -1777,7 +1777,7 @@ def az_sys(cmd):
 		print "az "+cmd
 	os.system("az "+cmd)
 
-def az_tryutil(cmd, stopFn, waitPeriod=5):
+def az_tryuntil(cmd, stopFn, waitPeriod=5):
 	while not stopFn():
 		try:
 			az_sys(cmd)
