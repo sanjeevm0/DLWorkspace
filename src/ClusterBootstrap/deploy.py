@@ -1708,6 +1708,12 @@ def pick_server( nodelists, curNode ):
 		return curNode
 
 # simple utils
+class ValClass:
+	def __init__(self, initVal):
+		self.val = initVal
+	def set(newVal):
+		self.val = newVal
+
 def shellquote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
@@ -1716,6 +1722,40 @@ def exec_rmt_cmd(node, cmd):
 
 def rmt_cp(node, source, target):
 	utils.sudo_scp(config["ssh_cert"], source, target, "core", node)
+
+def tryuntil(cmdLambda, stopFn, updateFn, waitPeriod=5):
+	while not stopFn():
+		try:
+			output = cmdLambda() # if exception occurs here, update does not occur
+			print "Output"
+			print output
+			updateFn()
+			print "Stop:"
+			print stopFn()
+			if stopFn():
+				return output
+		except Exception as e:
+			print "Exception"
+			print e
+			()
+		if not stopFn():
+			print "Sleep for 5"
+			time.sleep(waitPeriod)
+
+# Run until stop condition and success
+def subproc_tryuntil(cmd, stopFn, shell=True, waitPeriod=5):
+	bFirst = ValClass(True)
+	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst and stopFn(), lambda : bFirst.set(False), waitPeriod)
+
+# Run once until success (no exception)
+def subproc_runonce(cmd, shell=True, waitPeriod=5):
+	bFirst = ValClass(True)
+	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst, lambda : bFirst.set(False), waitPeriod)
+
+# Run for N success
+def subproc_runN(cmd, n, shell=True, waitPeriod=5):
+	bCnt = ValClass(0)
+	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : (bCnt < n), lambda : bCnt.set(bCnt.val+1), waitPeriod)
 
 # copy list of files to a node
 def copy_list_of_files(listOfFiles, node):	
@@ -1778,13 +1818,7 @@ def az_sys(cmd):
 	os.system("az "+cmd)
 
 def az_tryuntil(cmd, stopFn, waitPeriod=5):
-	while not stopFn():
-		try:
-			az_sys(cmd)
-		except:
-			pass
-		if not stopFn():
-			time.sleep(waitPeriod)
+	return tryuntil(lambda : az_sys(cmd), stopFn, lambda : (), waitPeriod)
 
 # Create SQL database
 def az_create_sql_server():
@@ -1890,7 +1924,7 @@ def acs_get_machineIP(machineName):
 	return {"nic" : nicDefault, "ipconfig": ipConfigDefault, "publicipname" : None, "publicip" : None}
 
 def acs_get_nodes():
-	nodeInfo = subprocess.check_output('./deploy/bin/kubectl -o=json --kubeconfig=./deploy/'+config["acskubeconfig"]+' get nodes', shell=True)
+	nodeInfo = subproc_runonce('./deploy/bin/kubectl -o=json --kubeconfig=./deploy/'+config["acskubeconfig"]+' get nodes', shell=True)
 	nodes = yaml.load(nodeInfo)
 	return nodes["items"]
 
