@@ -387,8 +387,8 @@ scriptblocks = {
   		"kubernetes start webportal",
 	],
 	"bldwebui": [
+		"webui"
 		"docker push restfulapi",
-		"docker push restfulapiacs",
 		"docker push webui",
 	],
 	"restartwebui": [
@@ -702,7 +702,6 @@ def add_acs_config():
 		config["isacs"] = True
 		create_cluster_id()
 
-		config["restfulapi"] = "restfulapiacs"
 		config["platform-scripts"] = "acs"
 		config["WinbindServers"] = []
 		config["etcd_node_num"] = config["master_node_num"]
