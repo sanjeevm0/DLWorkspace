@@ -1724,18 +1724,33 @@ def rmt_cp(node, source, target):
 	utils.sudo_scp(config["ssh_cert"], source, target, "core", node)
 
 def tryuntil(cmdLambda, stopFn, updateFn, waitPeriod=5):
+	print "CWD"
+	print os.getcwd()
 	while not stopFn():
 		try:
+			print "exec cmd"
+			print cmdLambda
 			output = cmdLambda() # if exception occurs here, update does not occur
 			print "Output"
 			print output
 			updateFn()
-			print "Stop:"
+			print "Stop returns:"
 			print stopFn()
-			if stopFn():
+			toStop = False
+			try:
+				toStop = stopFn()
+				print "Tostop sset to"
+				print toStop
+			except Exception as e:
+				print "Exception -- stopping anyways"
+				print e
+				toStop = True
+			if toStop:
+				print "Returning"
+				print output
 				return output
 		except Exception as e:
-			print "Exception"
+			print "Exception in command"
 			print e
 			()
 		if not stopFn():
@@ -1750,6 +1765,7 @@ def subproc_tryuntil(cmd, stopFn, shell=True, waitPeriod=5):
 # Run once until success (no exception)
 def subproc_runonce(cmd, shell=True, waitPeriod=5):
 	bFirst = ValClass(True)
+	print "Running cmd:{0} Shell:{1}".format(cmd, shell)
 	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst, lambda : bFirst.set(False), waitPeriod)
 
 # Run for N success
