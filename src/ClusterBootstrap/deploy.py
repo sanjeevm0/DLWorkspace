@@ -417,12 +417,12 @@ scriptblocks = {
 	],
 	"acs": [
 		"acs deploy",
-		"acs postdeploy"
+		"acs postdeploy",
 		"acs storagemount",
 		"acs gpudrivers",
 		"acs freeflow",
 		"acs bldwebui",
-		"restartwebui",
+		"acs restartwebui",
 	],
 }
 
