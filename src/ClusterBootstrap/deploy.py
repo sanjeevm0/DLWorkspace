@@ -387,7 +387,7 @@ scriptblocks = {
   		"kubernetes start webportal",
 	],
 	"bldwebui": [
-		"webui"
+		"webui",
 		"docker push restfulapi",
 		"docker push webui",
 	],
@@ -421,7 +421,7 @@ scriptblocks = {
 		"acs storagemount",
 		"acs gpudrivers",
 		"acs freeflow",
-		"acs bldwebui",
+		"bldwebui",
 		"acs restartwebui",
 	],
 }
