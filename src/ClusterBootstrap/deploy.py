@@ -422,7 +422,7 @@ scriptblocks = {
 		"acs storagemount",
 		"acs gpudrivers",
 		"acs freeflow",
-		"bldwebui",
+		"acs bldwebui",
 		"acs restartwebui",
 	],
 }
@@ -1843,19 +1843,8 @@ def az_sys(cmd):
 		print "az "+cmd
 	os.system("az "+cmd)
 
-<<<<<<< HEAD
-def az_tryutil(cmd, stopFn, waitPeriod=5):
-	while not stopFn():
-		try:
-			az_sys(cmd)
-		except:
-			pass
-		if not stopFn():
-			time.sleep(waitPeriod)
-=======
 def az_tryuntil(cmd, stopFn, waitPeriod=5):
 	return tryuntil(lambda : az_sys(cmd), stopFn, lambda : (), waitPeriod)
->>>>>>> 3bc9516383979a9e77798a547c1992c2bf8b2b37
 
 # Create SQL database
 def az_create_sql_server():
@@ -2173,12 +2162,6 @@ def acs_deploy():
 	# Attach DNS name to master
 	acs_attach_dns_name()
 
-<<<<<<< HEAD
-	# post ACS cluster deployment setup
-	acs_post_deploy()
-
-=======
->>>>>>> 3bc9516383979a9e77798a547c1992c2bf8b2b37
 	return Nodes
 
 def acs_get_storage_key():
