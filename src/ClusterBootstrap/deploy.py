@@ -415,6 +415,14 @@ scriptblocks = {
 		"kubernetes start restfulapi",
 		"kubernetes start webportal",
 	],
+	"acs": [
+		"acs deploy",
+		"acs storagemount",
+		"acs gpudrivers",
+		"acs freeflow",
+		"acs bldwebui",
+		"restartwebui",
+	],
 }
 
 # default search for all partitions of hdb, hdc, hdd, and sdb, sdc, sdd
@@ -714,7 +722,15 @@ def add_acs_config():
 			match = re.match('tcp:(.*)\.database\.windows\.net', config["sqlserver-hostname"])
 			config["azure-sqlservername"] = match.group(1)
 
+		# Some locations put VMs in child resource groups
 		acs_set_resource_grp()
+
+		# check for GPU sku
+		match = re.match('.*\_N.*', config["acsagentsize"])
+		if not match is None:
+			config["acs_isgpu"] = True		
+		else:
+			config["acs_isgpu"] = False
 
 		# Add users -- hacky going into CCSAdmins group!!
 		if "webui_admins" in config:
@@ -1711,7 +1727,7 @@ def pick_server( nodelists, curNode ):
 class ValClass:
 	def __init__(self, initVal):
 		self.val = initVal
-	def set(newVal):
+	def set(self, newVal):
 		self.val = newVal
 
 def shellquote(s):
@@ -1724,54 +1740,46 @@ def rmt_cp(node, source, target):
 	utils.sudo_scp(config["ssh_cert"], source, target, "core", node)
 
 def tryuntil(cmdLambda, stopFn, updateFn, waitPeriod=5):
-	print "CWD"
-	print os.getcwd()
 	while not stopFn():
 		try:
-			print "exec cmd"
-			print cmdLambda
 			output = cmdLambda() # if exception occurs here, update does not occur
-			print "Output"
-			print output
+			#print "Output: {0}".format(output)
 			updateFn()
-			print "Stop returns:"
-			print stopFn()
 			toStop = False
 			try:
 				toStop = stopFn()
-				print "Tostop sset to"
-				print toStop
 			except Exception as e:
-				print "Exception -- stopping anyways"
-				print e
+				print "Exception {0} -- stopping anyways".format(e)
 				toStop = True
 			if toStop:
-				print "Returning"
-				print output
+				#print "Returning {0}".format(output)
 				return output
 		except Exception as e:
-			print "Exception in command"
-			print e
-			()
+			print "Exception in command {0}".format(e)
 		if not stopFn():
-			print "Sleep for 5"
+			print "Not done yet - Sleep for 5 seconds and continue"
 			time.sleep(waitPeriod)
 
 # Run until stop condition and success
 def subproc_tryuntil(cmd, stopFn, shell=True, waitPeriod=5):
 	bFirst = ValClass(True)
-	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst and stopFn(), lambda : bFirst.set(False), waitPeriod)
+	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst.val and stopFn(), lambda : bFirst.set(False), waitPeriod)
+
+def subprocrun(cmd, shellArg):
+	#print "Running Cmd: {0} Shell: {1}".format(cmd, shellArg)
+	#embed()
+	return subprocess.check_output(cmd, shell=shellArg)
 
 # Run once until success (no exception)
 def subproc_runonce(cmd, shell=True, waitPeriod=5):
 	bFirst = ValClass(True)
-	print "Running cmd:{0} Shell:{1}".format(cmd, shell)
-	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst, lambda : bFirst.set(False), waitPeriod)
+	#print "Running cmd:{0} Shell:{1}".format(cmd, shell)
+	return tryuntil(lambda : subprocrun(cmd, shell), lambda : not bFirst.val, lambda : bFirst.set(False), waitPeriod)
 
 # Run for N success
 def subproc_runN(cmd, n, shell=True, waitPeriod=5):
 	bCnt = ValClass(0)
-	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : (bCnt < n), lambda : bCnt.set(bCnt.val+1), waitPeriod)
+	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : (bCnt.val < n), lambda : bCnt.set(bCnt.val+1), waitPeriod)
 
 # copy list of files to a node
 def copy_list_of_files(listOfFiles, node):	
@@ -1940,7 +1948,10 @@ def acs_get_machineIP(machineName):
 	return {"nic" : nicDefault, "ipconfig": ipConfigDefault, "publicipname" : None, "publicip" : None}
 
 def acs_get_nodes():
-	nodeInfo = subproc_runonce('./deploy/bin/kubectl -o=json --kubeconfig=./deploy/'+config["acskubeconfig"]+' get nodes', shell=True)
+	binary = os.path.abspath('./deploy/bin/kubectl')
+	kubeconfig = os.path.abspath('./deploy/'+config["acskubeconfig"])
+	cmd = binary + ' -o=json --kubeconfig='+kubeconfig+' get nodes'
+	nodeInfo = subproc_runonce(cmd)
 	nodes = yaml.load(nodeInfo)
 	return nodes["items"]
 
@@ -3816,7 +3827,9 @@ def run_command( args, command, nargs, parser ):
 	elif command == "acs":
 		k8sconfig["kubelet-path"] = "./deploy/bin/kubectl --kubeconfig=./deploy/%s" % (config["acskubeconfig"])
 		#print "Config: " + k8sconfig["kubelet-path"]
-		if (len(nargs) >= 1):
+		if (len(nargs) == 0):
+			run_script_blocks(scriptblocks["acs"])
+		elif (len(nargs) >= 1):
 			if nargs[0]=="deploy":
 				acs_deploy()
 			elif nargs[0]=="getconfig":
@@ -3847,13 +3860,15 @@ def run_command( args, command, nargs, parser ):
 			elif nargs[0]=="bldwebui":
 				run_script_blocks(scriptblocks["bldwebui"])
 			elif nargs[0]=="gpudrivers":
-				acs_install_gpu()
+				if (config["acs_isgpu"]):
+					acs_install_gpu()
 			elif nargs[0]=="addons":
 				# deploy addons / config changes (i.e. weave.yaml)
 				acs_deploy_addons()
 			elif nargs[0]=="freeflow":
-				kube_dpeloy_configchanges() # starte weave.yaml
-				run_script_blocks(["kubernetes start freeflow"])
+				if ("freeflow" in config) and (config["freeflow"]):
+					kube_dpeloy_configchanges() # starte weave.yaml
+					run_script_blocks(["kubernetes start freeflow"])
 			elif nargs[0]=="jobendpt":
 				acs_get_jobendpt(nargs[1])
 			elif nargs[0]=="dns":
