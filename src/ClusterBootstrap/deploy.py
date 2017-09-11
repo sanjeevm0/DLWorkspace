@@ -417,6 +417,7 @@ scriptblocks = {
 	],
 	"acs": [
 		"acs deploy",
+		"acs postdeploy"
 		"acs storagemount",
 		"acs gpudrivers",
 		"acs freeflow",
@@ -2159,9 +2160,6 @@ def acs_deploy():
 
 	# Attach DNS name to master
 	acs_attach_dns_name()
-
-	# post ACS cluster deployment setup
-	acs_post_deploy()
 
 	return Nodes
 
