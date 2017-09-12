@@ -585,10 +585,11 @@ def generate_trusted_domains(network_config, start_idx ):
 		ret += "DNS.%d = %s\n" % (start_idx, "*." + domain)
 		start_idx +=1
 	trusted_domains = fetch_dictionary(network_config, ["trusted-domains"])
-	for domain in trusted_domains:
-		# "*." is encoded in domain for those entry
-		ret += "DNS.%d = %s\n" % (start_idx, domain)
-		start_idx +=1
+	if not trusted_domains is None:
+		for domain in trusted_domains:
+			# "*." is encoded in domain for those entry
+			ret += "DNS.%d = %s\n" % (start_idx, domain)
+			start_idx +=1
 	return ret
 
 def get_platform_script_directory( target ):
@@ -741,7 +742,8 @@ def add_acs_config():
 					config["UserGroups"]["CCSAdmins"]["Allowed"].append(name)
 
 		# domain name
-		config["domain"] = "{0}.cloudapp.azure.com".format(config["cluster_location"])
+		config["network"] = {}
+		config["network"]["domain"] = "{0}.cloudapp.azure.com".format(config["cluster_location"])
 
 		try:
 			if not ("accesskey" in config["mountpoints"]["rootshare"]):
