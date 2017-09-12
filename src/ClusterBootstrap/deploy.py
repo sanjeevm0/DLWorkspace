@@ -740,6 +740,9 @@ def add_acs_config():
 				if not name in config["UserGroups"]["CCSAdmins"]["Allowed"]:
 					config["UserGroups"]["CCSAdmins"]["Allowed"].append(name)
 
+		# domain name
+		config["domain"] = "{0}.cloudapp.azure.com".format(config["cluster_location"])
+
 		try:
 			if not ("accesskey" in config["mountpoints"]["rootshare"]):
 				azureKey = acs_get_storage_key()
@@ -1908,16 +1911,26 @@ def acs_get_ip(ipaddrName):
 	ipInfo = az_cmd("network public-ip show --resource-group="+config["resource_group"]+" --name="+ipaddrName)
 	return ipInfo["ipAddress"]
 
+def acs_attach_dns_to_node(node, dnsName=None):
+	nodeName = config["nodenames_from_ip"][node]
+	if (dnsName is None):
+		dnsName = nodeName
+	ipName = config["acsnodes"][nodeName]["publicipname"]
+	cmd = "network public-ip update"
+	cmd += " --resource-group=%s" % config["resource_group"]
+	cmd += " --name=%s" % ipName
+	cmd += " --dns-name=%s" % dnsName
+	az_sys(cmd)	
+
 def acs_attach_dns_name():
 	get_nodes_from_acs()
 	firstMasterNode = config["kubernetes_master_node"][0]
-	masterNodeName = config["nodenames_from_ip"][firstMasterNode]
-	ipname = config["acsnodes"][masterNodeName]["publicipname"]
-	cmd = "network public-ip update"
-	cmd += " --resource-group=%s" % config["resource_group"]
-	cmd += " --name=%s" % ipname
-	cmd += " --dns-name=%s" % config["master_dns_name"]
-	az_sys(cmd)
+	acs_attach_dns_to_node(firstMasterNode, config["master_dns_name"])
+	for i in range(len(config["kubernetes_master_node"])):
+		if (i != 0):
+			acs_attach_dns_to_node(config["kubernetes_master_node"][i])
+	for node in config["worker_node"]:
+		acs_attach_dns_to_node(node)
 
 def acs_get_machineIP(machineName):
 	print "Machine: "+machineName
