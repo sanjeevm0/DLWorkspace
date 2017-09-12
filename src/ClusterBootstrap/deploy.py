@@ -1624,7 +1624,7 @@ def deploy_restful_API_on_node(ipAddress):
 		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo mkdir -p /etc/kubernetes/ssl")
 		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/client.crt /etc/kubernetes/ssl/apiserver.pem")
 		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/client.key /etc/kubernetes/ssl/apiserver-key.pem")
-		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/ca.crt /etc/kubernetes/ssl/ca.crt")
+		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /etc/kubernetes/certs/ca.crt /etc/kubernetes/ssl/ca.pem")
 		# overwrite ~/.kube/config (to be mounted from /etc/kubernetes/restapi-kubeconfig.yaml)
 		utils.SSH_exec_cmd(config["ssh_cert"], "core", masterIP, "sudo cp /home/core/.kube/config /etc/kubernetes/restapi-kubeconfig.yaml")
 
