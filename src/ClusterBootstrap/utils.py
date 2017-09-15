@@ -416,3 +416,14 @@ def subproc_runonce(cmd, shell=True, waitPeriod=5):
 def subproc_runN(cmd, n, shell=True, waitPeriod=5):
 	bCnt = ValClass(0)
 	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : (bCnt.val < n), lambda : bCnt.set(bCnt.val+1), waitPeriod)
+
+def mergeDict(configDst, configSrc, bOverwrite):
+	for entry in configSrc:
+		if bOverwrite:
+			configDst.pop(entry, None)
+        if not entry in configDst:
+            if isinstance(configSrc[entry], dict):
+                configDst[entry] = {}
+                add_config(configDst[entry], configSrc[entry])
+            else:
+                configDst[entry] = configSrc[entry]
