@@ -282,7 +282,7 @@ def create_cluster():
         print "creating VM %s..." % vmname
         create_vm(vmname, True)
 
-def gen_cluster_config(output_file_name):
+def gen_cluster_config(output_file_name, output_file=True):
 
     cmd = """
         az storage account show-connection-string \
@@ -337,9 +337,12 @@ def gen_cluster_config(output_file_name):
     if file_share_key is not None:
         cc["mountpoints"]["rootshare"]["accesskey"] = file_share_key
 
-    print yaml.dump(cc, default_flow_style=False)
-    with open(output_file_name, 'w') as outfile:
-        yaml.dump(cc, outfile, default_flow_style=False)
+    if output_file:
+        print yaml.dump(cc, default_flow_style=False)
+        with open(output_file_name, 'w') as outfile:
+            yaml.dump(cc, outfile, default_flow_style=False)
+
+    return cc
 
 def run_command( args, command, nargs, parser ):
     if command =="create":
