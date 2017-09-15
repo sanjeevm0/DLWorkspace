@@ -64,6 +64,15 @@ def merge_config( config1, config2 ):
         else:
             config1[entry] = config2[entry]
 
+def add_config(configDst, configSrc):
+    for entry in configSrc:
+        if not entry in configDst:
+            if isinstance(configSrc[entry], dict):
+                configDst[entry] = {}
+                add_config(configDst[entry], configSrc[entry])
+            else:
+                configDst[entry] = configSrc[entry]
+
 def update_config(config):
     config["azure_cluster"]["resource_group_name"] = config["azure_cluster"]["cluster_name"]+"ResGrp"
     config["azure_cluster"]["vnet_name"] = config["azure_cluster"]["cluster_name"]+"-VNet"

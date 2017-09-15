@@ -39,6 +39,7 @@ from config import config as k8sconfig
 
 sys.path.append("../docker-images/glusterfs")
 import launch_glusterfs
+import az_tools
 
 capacityMatch = re.compile("\d+[M|G]B")
 digitsMatch = re.compile("\d+")
@@ -704,10 +705,77 @@ def create_cluster_id():
 		config["clusterId"] = utils.get_cluster_ID_from_file()	
 		print "Cluster ID is " + config["clusterId"]
 
+
+
+dockerprefix : sanjeevm_test1/
+
+
+master_dns_name : k8sgpu7
+resource_group : k8sgpu7
+cluster_name : k8s
+
+mountpoints:
+  rootshare:
+    type: azurefileshare
+    accountname: k8sgpu7storage52dsfs34
+    filesharename: k8sfileshare
+
+    # Mount at root
+    mountpoints: ""
+
+# use freeflow
+freeflow: true
+
+# Basic authentication for Kubernetes
+basic_auth :  M$ft2016,admin,1000
+
+# For DLWorkspace
+# SQL Server info for use by Job Manager / Restful API
+# Azure SQL server will be at k8sgpu2-jobserver.database.windows.net
+azure-sqlservername : k8sgpu7-jobserver
+sqlserver-username : irchallenge
+sqlserver-password : M$ft2017
+sqlserver-database : DLWorkspaceJobs
+
+
+def update_config(config):
+    config["azure_cluster"]["resource_group_name"] = config["azure_cluster"]["cluster_name"]+"ResGrp"
+    config["azure_cluster"]["vnet_name"] = config["azure_cluster"]["cluster_name"]+"-VNet"
+    config["azure_cluster"]["storage_account_name"] = config["azure_cluster"]["cluster_name"]+"storage"
+    config["azure_cluster"]["nsg_name"] = config["azure_cluster"]["cluster_name"]+"-nsg"
+    config["azure_cluster"]["storage_account_name"] = config["azure_cluster"]["cluster_name"]+"storage"
+
+    config["azure_cluster"]["sql_server_name"] = config["azure_cluster"]["cluster_name"]+"sqlserver"
+    config["azure_cluster"]["sql_admin_name"] = config["azure_cluster"]["cluster_name"]+"sqladmin"
+    config["azure_cluster"]["sql_database_name"] = config["azure_cluster"]["cluster_name"]+"sqldb"
+
+    if "sql_admin_password" not in config["azure_cluster"]:
+        config["azure_cluster"]["sql_admin_password"] = uuid.uuid4().hex+"12!AB"
+
+    if (os.path.exists('./deploy/sshkey/id_rsa.pub')):
+        f = open('./deploy/sshkey/id_rsa.pub')
+        config["azure_cluster"]["sshkey"] = f.read()
+        f.close()
+    else:
+        os.system("mkdir -p ./deploy/sshkey")
+        if not os.path.exists("./deploy/sshkey/azure_id_rsa"):
+            os.system("ssh-keygen -t rsa -b 4096 -f ./deploy/sshkey/azure_id_rsa -P ''")
+        f = open('./deploy/sshkey/azure_id_rsa.pub')
+        config["azure_cluster"]["sshkey"] = f.read()
+        f.close()
+    return config
+
 def add_acs_config():
 	if (os.path.exists("./deploy/"+config["acskubeconfig"])):
 		config["isacs"] = True
 		create_cluster_id()
+
+		configAzure = {}
+		configAzure["azure_cluster"] = {}
+		configAzure["azure_cluster"]["cluster_name"] = config["cluster_name"]
+		az_tools.update_config(configAzure)
+		# now merge with main
+		az_tools.merge_config(config, configAzure["azure_cluster"])
 
 		config["platform-scripts"] = "acs"
 		config["WinbindServers"] = []
@@ -748,7 +816,7 @@ def add_acs_config():
 				config["mountpoints"]["rootshare"]["accesskey"] = azureKey
 		except:
 			()
-			
+
 # Render scripts for kubenete nodes
 def add_kubelet_config():
 	renderfiles = []
@@ -1728,62 +1796,11 @@ def pick_server( nodelists, curNode ):
 		return curNode
 
 # simple utils
-class ValClass:
-	def __init__(self, initVal):
-		self.val = initVal
-	def set(self, newVal):
-		self.val = newVal
-
-def shellquote(s):
-    return "'" + s.replace("'", "'\\''") + "'"
-
 def exec_rmt_cmd(node, cmd):
 	utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, cmd)
 
 def rmt_cp(node, source, target):
 	utils.sudo_scp(config["ssh_cert"], source, target, config["admin_username"], node)
-
-def tryuntil(cmdLambda, stopFn, updateFn, waitPeriod=5):
-	while not stopFn():
-		try:
-			output = cmdLambda() # if exception occurs here, update does not occur
-			#print "Output: {0}".format(output)
-			updateFn()
-			toStop = False
-			try:
-				toStop = stopFn()
-			except Exception as e:
-				print "Exception {0} -- stopping anyways".format(e)
-				toStop = True
-			if toStop:
-				#print "Returning {0}".format(output)
-				return output
-		except Exception as e:
-			print "Exception in command {0}".format(e)
-		if not stopFn():
-			print "Not done yet - Sleep for 5 seconds and continue"
-			time.sleep(waitPeriod)
-
-# Run until stop condition and success
-def subproc_tryuntil(cmd, stopFn, shell=True, waitPeriod=5):
-	bFirst = ValClass(True)
-	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : not bFirst.val and stopFn(), lambda : bFirst.set(False), waitPeriod)
-
-def subprocrun(cmd, shellArg):
-	#print "Running Cmd: {0} Shell: {1}".format(cmd, shellArg)
-	#embed()
-	return subprocess.check_output(cmd, shell=shellArg)
-
-# Run once until success (no exception)
-def subproc_runonce(cmd, shell=True, waitPeriod=5):
-	bFirst = ValClass(True)
-	#print "Running cmd:{0} Shell:{1}".format(cmd, shell)
-	return tryuntil(lambda : subprocrun(cmd, shell), lambda : not bFirst.val, lambda : bFirst.set(False), waitPeriod)
-
-# Run for N success
-def subproc_runN(cmd, n, shell=True, waitPeriod=5):
-	bCnt = ValClass(0)
-	return tryuntil(lambda : subprocess.check_output(cmd, shell), lambda : (bCnt.val < n), lambda : bCnt.set(bCnt.val+1), waitPeriod)
 
 # copy list of files to a node
 def copy_list_of_files(listOfFiles, node):	
