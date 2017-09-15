@@ -1,6 +1,6 @@
-# Deploy DL workspace cluster on Azure. 
+# Deploy DL workspace cluster on Azure Container Service (ACS)
 
-This document describes the procedure to deploy DL workspace cluster on Azure. We are still improving the deployment procedure on Azure. Please contact the authors if you have encounter deployment issue. 
+This document describes the procedure to deploy DL workspace cluster on ACS. We are still improving the deployment procedure on ACS. Please contact the authors if you encounter any issues. 
 
 0. Follow [this document](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) to install Azure CLI and login to your Azure subscription on your dev machine. 
 
