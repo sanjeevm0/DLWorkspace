@@ -4,6 +4,7 @@
 import sys
 import os
 import subprocess
+import yaml
 
 sys.path.append("../utils")
 import utils
@@ -21,12 +22,12 @@ def az_sys(cmd):
 	os.system("az "+cmd)
 
 def az_tryuntil(cmd, stopFn, waitPeriod=5):
-	return tryuntil(lambda : az_sys(cmd), stopFn, lambda : (), waitPeriod)
+	return utils.tryuntil(lambda : az_sys(cmd), stopFn, lambda : (), waitPeriod)
 
 # Create SQL database
 def az_create_sql_server():
 	# escape the password in case it has characters such as "$"
-	pwd = shellquote(config["sqlserver-password"])
+	pwd = utils.shellquote(config["sqlserver-password"])
 	cmd = "sql server create"
 	cmd += " --resource-group=%s" % config["resource_group"]
 	cmd += " --location=%s" % config["cluster_location"]
@@ -62,20 +63,27 @@ def az_grp_exist(grpname):
 
 # Overwrite resource group with location where machines are located
 # If no machines are found, that may be because they are not created, so leave it as it is
-def acs_set_resource_grp():
-	config["acs_resource_group"] = config["resource_group"] # where container service resides
-	if (az_grp_exist(config["resource_group"])):
-		machines = az_cmd("vm list --resource-group=%s" % config["resource_group"])
-		if (len(machines)==0):
-			# try child resource group
-			tryGroup = "%s_%s_%s" % (config["resource_group"], config["cluster_name"], config["cluster_location"])
-			print "Grp %s has no matchines trying %s" % (config["resource_group"], tryGroup)
-			if (az_grp_exist(tryGroup)):
-				machines = az_cmd("vm list --resource-group=%s" % tryGroup)
-				if (len(machines) > 0):
-					# overwrite with group where machines are located
-					config["resource_group"] = tryGroup
-	print "Resource group = %s" % config["resource_group"]
+def acs_set_resource_grp(exitIfNotFound):
+    config["acs_resource_group"] = config["resource_group"] # where container service resides
+    bFoundMachines = False
+    if (az_grp_exist(config["resource_group"])):
+        machines = az_cmd("vm list --resource-group=%s" % config["resource_group"])
+        if (len(machines) > 0):
+            bFoundMachines = True
+        if not bFoundMachines:
+            # try child resource group
+            tryGroup = "%s_%s_%s" % (config["resource_group"], config["cluster_name"], config["cluster_location"])
+            print "Grp %s has no matchines trying %s" % (config["resource_group"], tryGroup)
+            if (az_grp_exist(tryGroup)):
+                machines = az_cmd("vm list --resource-group=%s" % tryGroup)
+                if (len(machines) > 0):
+                    # overwrite with group where machines are located
+                    config["resource_group"] = tryGroup
+                    bFoundMachines = True
+    if not bFoundMachines and exitIfNotFound:
+        print "No machines found -- quitting"
+        exit()
+    print "Resource group = %s" % config["resource_group"]
 
 def acs_get_id(elem):
 	elemFullName = elem["id"]
@@ -131,7 +139,7 @@ def acs_get_nodes():
 	binary = os.path.abspath('./deploy/bin/kubectl')
 	kubeconfig = os.path.abspath('./deploy/'+config["acskubeconfig"])
 	cmd = binary + ' -o=json --kubeconfig='+kubeconfig+' get nodes'
-	nodeInfo = subproc_runonce(cmd)
+	nodeInfo = utils.subproc_runonce(cmd)
 	nodes = yaml.load(nodeInfo)
 	return nodes["items"]
 
@@ -196,60 +204,60 @@ def acs_add_nsg_rules(ports_to_add):
     nsg_name = acs_get_id(nsgs[0])
     cmd = "network nsg show --resource-group="+config["resource_group"]+" --name="+nsg_name
     rulesInfo = az_cmd(cmd)
-	rules = rulesInfo["defaultSecurityRules"] + rulesInfo["securityRules"]
+    rules = rulesInfo["defaultSecurityRules"] + rulesInfo["securityRules"]
 
-	maxThreeDigitRule = 100
-	for rule in rules:
-		if acs_is_valid_nsg_rule(rule):
-			if (rule["priority"] < 1000):
-				#print "Priority: %d" % rule["priority"]
-				maxThreeDigitRule = max(maxThreeDigitRule, rule["priority"])
+    maxThreeDigitRule = 100
+    for rule in rules:
+        if acs_is_valid_nsg_rule(rule):
+            if (rule["priority"] < 1000):
+                #print "Priority: %d" % rule["priority"]
+                maxThreeDigitRule = max(maxThreeDigitRule, rule["priority"])
 
-	if verbose:
-		print "Existing max three digit rule for NSG: %s is %d" % (nsg_name, maxThreeDigitRule)
+    if verbose:
+        print "Existing max three digit rule for NSG: %s is %d" % (nsg_name, maxThreeDigitRule)
 
-	for port_rule in ports_to_add:
-		port_num = ports_to_add[port_rule]
-		createRule = True
-		isNum = isinstance(port_num, numbers.Number)
-		if (not isNum) and port_num.isdigit():
-			port_num = int(port_num)
-			isNum = True
-		if isNum:
-			# check for existing rules
-			found_port = None
-			for rule in rules:
-				if acs_is_valid_nsg_rule(rule):
-					match = re.match('(.*)-(.*)', rule["destinationPortRange"])
-					if (match is None):
-						minPort = int(rule["destinationPortRange"])
-						maxPort = minPort
-					elif (rule["destinationPortRange"] != "*"):
-						minPort = int(match.group(1))
-						maxPort = int(match.group(2))
-					else:
-						minPort = -1
-						maxPort = -1
-					if (minPort <= port_num) and (port_num <= maxPort):
-						found_port = rule["name"]
-						break
-			if not (found_port is None):
-				print "Rule for %s : %d -- already satisfied by %s" % (port_rule, port_num, found_port)
-				createRule = False
-		if createRule:
-			maxThreeDigitRule = maxThreeDigitRule + 10
-			cmd = "network nsg rule create"
-			cmd += " --resource-group=%s" % config["resource_group"]
-			cmd += " --nsg-name=%s" % nsg_name
-			cmd += " --name=%s" % port_rule
-			cmd += " --access=Allow"
-			if isNum:
-				cmd += " --destination-port-range=%d" % port_num
-			else:
-				cmd += " --destination-port-range=%s" % port_num
-			cmd += " --direction=Inbound"
-			cmd += " --priority=%d" % maxThreeDigitRule
-			az_cmd(cmd)
+    for port_rule in ports_to_add:
+        port_num = ports_to_add[port_rule]
+        createRule = True
+        isNum = isinstance(port_num, numbers.Number)
+        if (not isNum) and port_num.isdigit():
+            port_num = int(port_num)
+            isNum = True
+        if isNum:
+            # check for existing rules
+            found_port = None
+            for rule in rules:
+                if acs_is_valid_nsg_rule(rule):
+                    match = re.match('(.*)-(.*)', rule["destinationPortRange"])
+                    if (match is None):
+                        minPort = int(rule["destinationPortRange"])
+                        maxPort = minPort
+                    elif (rule["destinationPortRange"] != "*"):
+                        minPort = int(match.group(1))
+                        maxPort = int(match.group(2))
+                    else:
+                        minPort = -1
+                        maxPort = -1
+                    if (minPort <= port_num) and (port_num <= maxPort):
+                        found_port = rule["name"]
+                        break
+            if not (found_port is None):
+                print "Rule for %s : %d -- already satisfied by %s" % (port_rule, port_num, found_port)
+                createRule = False
+        if createRule:
+            maxThreeDigitRule = maxThreeDigitRule + 10
+            cmd = "network nsg rule create"
+            cmd += " --resource-group=%s" % config["resource_group"]
+            cmd += " --nsg-name=%s" % nsg_name
+            cmd += " --name=%s" % port_rule
+            cmd += " --access=Allow"
+            if isNum:
+                cmd += " --destination-port-range=%d" % port_num
+            else:
+                cmd += " --destination-port-range=%s" % port_num
+            cmd += " --direction=Inbound"
+            cmd += " --priority=%d" % maxThreeDigitRule
+            az_cmd(cmd)
 
 def acs_get_config():
 	# Install kubectl / get credentials
@@ -310,7 +318,7 @@ def acs_deploy():
 		cmd += " --generate-ssh-keys"
 	az_sys(cmd)
 
-	acs_set_resource_grp() # overwrite resource group if machines are elsewhere
+	acs_set_resource_grp(True) # overwrite resource group if machines are elsewhere
 
 	acs_create_storage()
 	az_create_sql()

@@ -711,22 +711,30 @@ def add_acs_config(command):
 		config["isacs"] = True
 		create_cluster_id()
 
+		#print "Config:{0}".format(config)
+		#print "Dockerprefix:{0}".format(config["dockerprefix"])
+
 		# Use az tools to generate default config params and overwrite if they don't exist
 		az_tools.config = az_tools.init_config()
 		az_tools.config["azure_cluster"]["cluster_name"] = config["cluster_name"]
-		az_tools.config = az_tools.update_config(configAzure)
-		az_tools.gen_cluster_config("", False)
-		utils.mergeDict(config, az_tools.config, False)
+		az_tools.config = az_tools.update_config(az_tools.config, False)
+		configAzure = az_tools.gen_cluster_config("", False)
+		#print "az_tools_config:{0}".format(az_tools.config)
+		#print "configAzure:{0}".format(configAzure)
+		utils.mergeDict(config, configAzure, False)
 
 		# Set ACS params to match
 		acs_tools.config = config
 		acs_tools.verbose = verbose
 
 		config["master_dns_name"] = config["cluster_name"]
+		config["resource_group"] = az_tools.config["azure_cluster"]["resource_group_name"]
 		config["platform-scripts"] = "acs"
 		config["WinbindServers"] = []
 		config["etcd_node_num"] = config["master_node_num"]
 		config["kube_addons"] = [] # no addons
+		config["mountpoints"]["rootshare"]["azstoragesku"] = config["azstoragesku"]
+		config["mountpoints"]["rootshare"]["azfilesharequota"] = config["azfilesharequota"]
 		config["freeflow"] = True
 
 		if ("azure-sqlservername" in config) and (not "sqlserver-hostname" in config):
@@ -737,7 +745,7 @@ def add_acs_config(command):
 			config["azure-sqlservername"] = match.group(1)
 
 		# Some locations put VMs in child resource groups
-		acs_tools.acs_set_resource_grp()
+		acs_tools.acs_set_resource_grp(False)
 
 		# check for GPU sku
 		match = re.match('.*\_N.*', config["acsagentsize"])
@@ -763,6 +771,7 @@ def add_acs_config(command):
 				config["mountpoints"]["rootshare"]["accesskey"] = azureKey
 		except:
 			()
+		print "Config:{0}".format(config)
 
 # Render scripts for kubenete nodes
 def add_kubelet_config():
@@ -3500,15 +3509,15 @@ def run_command( args, command, nargs, parser ):
 				ip = get_nodes_from_acs("")
 				acs_label_webui()
 			elif nargs[0]=="openports":
-				acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
+				acs_tools.acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
 			elif nargs[0]=="restartwebui":
 				run_script_blocks(scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
 				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
 			elif nargs[0]=="storage":
-				acs_create_storage()
+				acs_tools.acs_create_storage()
 			elif nargs[0]=="storagemount":
-				acs_create_storage()
+				acs_tools.acs_create_storage()
 				fileshare_install()
 				allmountpoints = mount_fileshares_by_service(True)
 				del_fileshare_links()
