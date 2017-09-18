@@ -370,6 +370,108 @@ default_config_parameters = {
 					 "/opt/addons/kube-addons/heapster-svc.json"
 					 ],
 
+    "Authentications": {
+        "Live-login-windows": {
+            "DisplayName": "Microsoft Account (live.com)",
+            "Tenant": "microsoft.onmicrosoft.com",
+            "ClientId": "55489cd6-b5b8-438d-ab42-4aba116ef8a3",
+            "UseIdToken": "true",
+            "Scope": "openid email profile",
+            # "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.windows.net/common",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        },
+        "Live-login-microsoftonline": {
+            "DisplayName": "Microsoft Account (live.com)",
+            "Tenant": "microsoft.onmicrosoft.com",
+            "ClientId": "55489cd6-b5b8-438d-ab42-4aba116ef8a3",
+            "UseIdToken": "true",
+            "Scope": "openid email profile",
+            # "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.microsoftonline.com/common/v2.0",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        }, 
+        "Live": {
+            "DisplayName": "Microsoft Account (live.com)",
+            "Tenant": "jinlmsfthotmail.onmicrosoft.com",
+            "ClientId": "734cc6a7-e80c-4b89-a663-0b9512925b45",
+            "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.microsoftonline.com/{0}",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        }, 
+        "Aad": {
+            "DisplayName": "Azure Graph",
+            "UseAadGraph": "true",
+            "UseToken": "true",
+            "Tenant": "jinlmsfthotmail.onmicrosoft.com",
+            "ClientId": "734cc6a7-e80c-4b89-a663-0b9512925b45",
+            "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.microsoftonline.com/{0}",
+            "RedirectUri": "",
+            "GraphBaseEndpoint": "https://graph.windows.net",
+            "GraphApiVersion": "1.6", # API version,
+            "Scope": "User.Read",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        },
+        "Live-jinl-windows": {
+            "DisplayName": "Live.com",
+            "Tenant": "jinlmsfthotmail.onmicrosoft.com",
+            "ClientId": "734cc6a7-e80c-4b89-a663-0b9512925b45",
+            "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.windows.net/common",
+            "RedirectUri": "",
+            "GraphBaseEndpoint": "https://graph.windows.net",
+            "GraphApiVersion": "1.6", # API version,
+            # "Scope": "User.Read",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        },
+        "CorpAad": {
+            "DisplayName": "@microsoft.com corpnet sign in",
+            "UseAadGraph": "true",
+            "UseToken": "true",
+            "Tenant": "microsoft.onmicrosoft.com",
+            "ClientId": "511c7514-3090-400e-873a-2fb05f2d5c19",
+            "ClientSecret": "E3RT39WiTvfBrJLpfs8FYJcrvFDTqEjxrlu9G36CZZM=",
+            "AuthorityFormat": "https://login.microsoftonline.com/{0}",
+            "RedirectUri": "",
+            "Scope": "User.Read",
+            "GraphBaseEndpoint": "https://graph.windows.net",
+            "GraphApiVersion": "1.6", # API version,
+            "Domains": [ "microsoft.com" ]
+        },       
+        "Live-Microsoft": {
+            "DisplayName": "Microsoft Account (live.com)",
+            "Tenant": "jinlmsfthotmail.onmicrosoft.com",
+            "ClientId": "734cc6a7-e80c-4b89-a663-0b9512925b45",
+            "ClientSecret": "g1nNX9u6Q2tAiqWXdec5amRPadSJQnvsy03P+arDkCk=",
+            "AuthorityFormat": "https://login.microsoftonline.com/{0}",
+            "Domains": [ "live.com", "hotmail.com", "outlook.com" ]
+        }, 
+
+        "Corp": {
+            "DisplayName": "@microsoft.com corpnet sign in",
+            "UseAadGraph": "false",
+            "Tenant": "microsoft.onmicrosoft.com",
+            "ClientId": "511c7514-3090-400e-873a-2fb05f2d5c19",
+            "ClientSecret": "E3RT39WiTvfBrJLpfs8FYJcrvFDTqEjxrlu9G36CZZM=",
+            "AuthorityFormat": "https://login.microsoftonline.com/{0}",
+            "RedirectUri": "",
+            "GraphBaseEndpoint": "https://graph.windows.net",
+            "GraphApiVersion": "1.6", # API version,
+            "Domains": [ "microsoft.com" ]
+        },
+        "Gmail": {
+            "DisplayName": "Gmail",
+            "Tenant": "dlws-auth",
+            "ClientId": "79875480060-jrs8a1rqe6a4kv82jh4d2nqgq8t6ap6k.apps.googleusercontent.com",
+            "ClientSecret": "L6XfKLzIbiy7jT7s416CBamz",
+            "AuthorityFormat": "https://accounts.google.com",
+            "Scope": "openid email",
+            "Domains": [ "gmail.com" ]
+        },
+
+    }
+
 }
 
 # These are super scripts
@@ -649,7 +751,11 @@ def merge_config( config1, config2 ):
 	for entry in config2:
 		if entry in config1:
 			if isinstance( config1[entry], dict): 
-				merge_config( config1[entry], config2[entry] )
+				if isinstance( config2[entry], dict): 
+					merge_config( config1[entry], config2[entry] )
+				else:
+					print "Error in configuration: %s should be of type %s, but is written as type %s in configuration" %(entry, type(config1[entry]), type(config2[entry]) )
+					exit(1)
 			else:
 				config1[entry] = config2[entry]
 		else:
@@ -1669,9 +1775,13 @@ def deploy_webUI_on_node(ipAddress):
 		os.system("mkdir -p ./deploy/WebUI")
 
 	utils.render_template("./template/WebUI/userconfig.json","./deploy/WebUI/userconfig.json", config)
-	os.system("cp --verbose ./deploy/WebUI/userconfig.json ../WebUI/dotnet/WebPortal/") # not used -- overwritten by mount from host, contains secret
+	os.system("cp --verbose ./deploy/WebUI/userconfig.json ../WebUI/dotnet/WebPortal/") # used for debugging, when deploy, it will be overwritten by mount from host, contains secret
+	utils.render_template("./template/WebUI/configAuth.json","./deploy/WebUI/configAuth.json", config)
+	os.system("cp --verbose ./deploy/WebUI/configAuth.json ../WebUI/dotnet/WebPortal/")
+	
 	# write into host, mounted into container
 	utils.sudo_scp(config["ssh_cert"],"./deploy/WebUI/userconfig.json","/etc/WebUI/userconfig.json", sshUser, webUIIP )
+
 
 	utils.render_template("./template/WebUI/Master-Templates.json", "./deploy/WebUI/Master-Templates.json", config)
 	#os.system("cp --verbose ./template/WebUI/Master-Templates.json ./deploy/WebUI/Master-Templates.json")
@@ -1906,7 +2016,10 @@ def get_mount_fileshares(curNode = None):
 				print "!!!Configuration Error!!! " + errorMsg
 				raise ValueError(erorMsg) 
 			
-			curphysicalmountpoint = os.path.join( physicalmountpoint, mountsharename )
+			if os.path.isabs(mountsharename):
+				curphysicalmountpoint = mountsharename
+			else:
+				curphysicalmountpoint = os.path.join( physicalmountpoint, mountsharename )
 			v["curphysicalmountpoint"] = curphysicalmountpoint
 			bMount = False
 			errorMsg = None
@@ -2334,6 +2447,7 @@ def repartition_nodes(nodes, nodesinfo, partitionConfig):
 					end = 100
 				if end > 100:
 					end = 100
+				cmd += "sudo parted -s " + deviceinfo["name"] + " mklabel gpt; "
 				cmd += "sudo parted -s --align optimal " + deviceinfo["name"] + " mkpart logical " + str(start) +"% " + str(end)+"% ; "
 				start = end
 		if len(cmd)>0:
@@ -2512,6 +2626,7 @@ def generate_hdfs_config( nodes, deviceSelect):
 		print "Journal nodes: " + zknodelist
 	journalnodelist = generate_hdfs_nodelist( journalnodes, fetch_config( ["hdfsconfig", "journalnode", "port"]), ";")
 	hdfsconfig["journalnode"]["nodes"] = journalnodelist
+	config["hdfsconfig"]["namenode"]["namenode1"] = hdfsconfig["namenode"]["namenode1"]
 	return hdfsconfig
 
 # Write configuration for each hdfs node. 
@@ -2543,8 +2658,19 @@ def hdfs_config( nodes, deviceSelect):
 		with open(config_file,'w') as datafile:
 			yaml.dump(hdfsconfig, datafile, default_flow_style=False)
 		utils.sudo_scp( config["ssh_cert"], config_file, config["hdfsconfig"]["configfile"], config["admin_username"], node)
+	zknodes = get_node_lists_for_service("zookeeper")
+	for node in zknodes:
+		if not (node in nodesinfo):
+			# The node is used for HDFS infrastructure, and needs configuration. 
+			os.system( "mkdir -p %s" % config["docker-run"]["hdfs"]["volumes"]["configDir"]["from"])
+			config_file = "%s/config.yaml" % config["docker-run"]["hdfs"]["volumes"]["configDir"]["from"]
+			hdfsconfig["dfs"]["data"] = ""
+			with open(config_file,'w') as datafile:
+				yaml.dump(hdfsconfig, datafile, default_flow_style=False)
+			utils.sudo_scp( config["ssh_cert"], config_file, config["hdfsconfig"]["configfile"], config["admin_username"], node)
+			
 	# Render docker. 
-	utils.render_template_directory("../docker-images/hdfs", "./deploy/docker-images/hdfs", config, verbose)
+	# utils.render_template_directory("../docker-images/hdfs", "./deploy/docker-images/hdfs", config, verbose)
 
 # Create gluster FS volume 
 def create_glusterFS_volume( nodesinfo, glusterFSargs ):
@@ -3541,7 +3667,9 @@ def run_command( args, command, nargs, parser ):
 				acs_attach_dns_name()
 			elif nargs[0]=="postdeploy":
 				acs_post_deploy()
-			
+			elif nargs[0]=="genconfig":
+				acs_tools.acs_update_azconfig(True)
+
 	elif command == "update" and len(nargs)>=1:
 		if nargs[0] == "config":
 			update_config_nodes()
@@ -3607,9 +3735,7 @@ def run_command( args, command, nargs, parser ):
 				print "Error: unrecognized etcd subcommand."
 				exit()
 		else:
-			parser.print_help()
-			print "Error: download need a subcommand."
-			exit()
+			get_kubectl_binary()
 	
 	elif command == "etcd":
 		if len(nargs)>=1:
