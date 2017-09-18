@@ -423,7 +423,8 @@ def mergeDict(configDst, configSrc, bOverwrite):
 		# 	print "key:{0} val:{1}".format(entry, configSrc[entry])
 		if bOverwrite:
 			configDst.pop(entry, None)
-		if not entry in configDst:
+		if (not entry in configDst) or (configDst[entry] is None) or \
+			(isinstance(configDst[entry], basestring) and configDst[entry].lower() == "null"):
 			if isinstance(configSrc[entry], dict):
 				configDst[entry] = {}
 				mergeDict(configDst[entry], configSrc[entry], bOverwrite)

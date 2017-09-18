@@ -714,18 +714,17 @@ def add_acs_config(command):
 		#print "Config:{0}".format(config)
 		#print "Dockerprefix:{0}".format(config["dockerprefix"])
 
-		# Use az tools to generate default config params and overwrite if they don't exist
-		az_tools.config = az_tools.init_config()
-		az_tools.config["azure_cluster"]["cluster_name"] = config["cluster_name"]
-		az_tools.config = az_tools.update_config(az_tools.config, False)
-		configAzure = az_tools.gen_cluster_config("", False)
-		#print "az_tools_config:{0}".format(az_tools.config)
-		#print "configAzure:{0}".format(configAzure)
-		utils.mergeDict(config, configAzure, False)
-
 		# Set ACS params to match
 		acs_tools.config = config
 		acs_tools.verbose = verbose
+
+		# Use az tools to generate default config params and overwrite if they don't exist
+		configAzure = acs_tools.acs_update_azconfig(False)
+		if verbose:
+			print "AzureConfig:\n{0}".format(configAzure)
+		utils.mergeDict(config, configAzure, True) # ovewrites defaults with Azure defaults
+		if verbose:
+			print "Config:\n{0}".format(config)
 
 		config["master_dns_name"] = config["cluster_name"]
 		config["resource_group"] = az_tools.config["azure_cluster"]["resource_group_name"]
