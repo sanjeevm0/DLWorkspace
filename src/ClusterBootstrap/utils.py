@@ -419,18 +419,8 @@ def subproc_runN(cmd, n, shell=True, waitPeriod=5):
 
 def mergeDict(configDst, configSrc, bOverwrite):
 	for entry in configSrc:
-<<<<<<< HEAD
-<<<<<<< HEAD
 		# if not isinstance(configSrc[entry], dict):
 		# 	print "key:{0} val:{1}".format(entry, configSrc[entry])
-=======
-		#if not isinstance(configSrc[entry], dict):
-		#	print "key:{0} val:{1}".format(entry, configSrc[entry])
->>>>>>> 50fda2b6e968e441ee033075e7daeb819e49a624
-=======
-		# if not isinstance(configSrc[entry], dict):
-		# 	print "key:{0} val:{1}".format(entry, configSrc[entry])
->>>>>>> 162f3e70d60b4530f1e057203ae8d22e897c9f52
 		if bOverwrite:
 			configDst.pop(entry, None)
 		if (not entry in configDst) or (configDst[entry] is None) or \
@@ -441,14 +431,6 @@ def mergeDict(configDst, configSrc, bOverwrite):
 			else:
 				#print "settingkey:{0} val:{1}".format(entry, configSrc[entry])
 				configDst[entry] = configSrc[entry]
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-		elif isinstance(configSrc[entry], dict) and isinstance(configDst[entry], dict):
-			mergeDict(configDst[entry], configSrc[entry], bOverwrite)
->>>>>>> 50fda2b6e968e441ee033075e7daeb819e49a624
-=======
 		elif isinstance(configSrc[entry], dict) and isinstance(configDst[entry], dict):
 			mergeDict(configDst[entry], configSrc[entry], bOverwrite)
 
->>>>>>> 162f3e70d60b4530f1e057203ae8d22e897c9f52
