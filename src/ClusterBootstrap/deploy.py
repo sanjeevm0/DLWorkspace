@@ -770,7 +770,9 @@ def add_acs_config(command):
 				config["mountpoints"]["rootshare"]["accesskey"] = azureKey
 		except:
 			()
-		print "Config:{0}".format(config)
+
+		if verbose:
+			print "Config:{0}".format(config)
 
 # Render scripts for kubenete nodes
 def add_kubelet_config():

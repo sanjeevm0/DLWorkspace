@@ -6,6 +6,7 @@ import os
 import subprocess
 import yaml
 import re
+import numbers
 
 sys.path.append("../utils")
 import utils
@@ -313,6 +314,7 @@ def acs_write_azconfig(configToWrite):
 def acs_generate_azconfig():
     az_tools.config = az_tools.init_config()
     az_tools.config["azure_cluster"]["cluster_name"] = config["cluster_name"]
+    az_tools.config["azure_cluster"]["azure_location"] = config["cluster_location"]
     az_tools.config = az_tools.update_config(az_tools.config, False)    
     return az_tools.gen_cluster_config("", False)
 

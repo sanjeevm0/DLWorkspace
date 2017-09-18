@@ -4,65 +4,60 @@ This document describes the procedure to deploy DL workspace cluster on ACS. We 
 
 0. Follow [this document](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) to install Azure CLI and login to your Azure subscription on your dev machine. 
 
-1. Please create Configuration file with single line of your cluster name. The cluster name should be unique, only with lower characters or numbers.
+1. Clone this repo
+
+2. Go into directory src/ClusterBootstrap inside the repo directory
+
+3. Please create a configuration file called "config.yaml"
 
 ```
 cluster_name: [your cluster name]
+cluster_location : [your cluster location - e.g., northcentralus]
+worker_node_num : [number of agent nodes for the ACS cluster]
+master_node_num : [number of master nodes for the ACS cluster]
+acsagentsize : [size of VM for agent nodes - e.g., Standard_NC12]
+azstoragesku: [sku for Azure storage account - e.g., Standard_LRS]
+azfilesharequota: [quota for fileshare in GB - e.g., 2048]
 ```
 
-2. Initial cluster and generate certificates and keys:
+4. To start and deploy the cluster
 ```
-./deploy.py -y build
-```
-3. Create Azure Cluster:
-```
-./az_tools.py create
+./deploy.py acs
 ```
 
-4. Generate cluster config file:
+The deployment script executes the following commands (you do not need to run them if you directly run step 4)
+1. Setup basic K8S cluster on ACS
 ```
-./az_tools.py genconfig cluster.yaml
+./deploy.py acs deploy
 ```
- 
-5. Run Azure deployment script block:
-  ```
-  ./deploy.py --verbose scriptblocks azure 
-  ```
-  After the script completes execution, you may still need to wait for a few minutes so that relevant docker images can be pulled to the target machine for execution. You can then access your cluster at:
-  ```
-  http://machine1.westus.cloudapp.azure.com/
-  ```
-  where machine1 is your azure infrastructure node. (you may get the address by ./deploy.py display)
 
+2. Label nodels and deploy services:
+```
+./deploy.py acs postdeploy
+```
 
+3. Mount storage on nodes:
+```
+./deploy.py acs storagemount
+```
 
+4. Install GPU drivers on nodes (if needed):
+```
+./deploy.py acs gpudrivers
+```
 
-  The script block execute the following command in sequences: (you do NOT need to run the following commands if you have run step 5)
-  1. Setup basic tools on the Ubuntu image. 
-  ```
-  ./deploy.py runscriptonall ./scripts/prepare_ubuntu.sh
-  ```
+5. Install network plugin
+```
+./deploy.py acs freeflow
+```
 
-  2. Deploy etcd/master and workers. 
-  ```
-  ./deploy.py -y deploy
-  ./deploy.py -y updateworker
-  ```
+6. Build needed docker images and configuration files for restfulapi, jobmanager, and webui
+```
+./deploy.py acs bldwebui
+```
 
-  3. Label nodels and deploy services:
-  ```
-  ./deploy.py -y kubernetes labels
-  ```
-
-  4. Build and deploy jobmanager, restfulapi, and webportal. Mount storage.
-  ```
-  ./deploy.py docker push restfulapi
-  ./deploy.py docker push webui
-  ./deploy.py webui
-  ./deploy.py mount
-  ./deploy.py kubernetes start jobmanager restfulapi webportal
-  ```
-
-6. If you run into a deployment issue, please check [here](Deployment_Issue.md) first. 
-
+7. Start DLWorkspace pods
+```
+./deploy.py acs restartwebui
+```
 
