@@ -68,7 +68,8 @@ def az_grp_exist(grpname):
 # Overwrite resource group with location where machines are located
 # If no machines are found, that may be because they are not created, so leave it as it is
 def acs_set_resource_grp(exitIfNotFound):
-    config["acs_resource_group"] = config["resource_group"] # where container service resides
+    if not "acs_resource_group" in config:
+        config["acs_resource_group"] = config["resource_group"] # where container service resides
     bFoundMachines = False
     if (az_grp_exist(config["resource_group"])):
         machines = az_cmd("vm list --resource-group=%s" % config["resource_group"])
@@ -341,7 +342,7 @@ def acs_deploy():
     az_sys(cmd)
 
     cmd = "acs create --orchestrator-type=kubernetes"
-    cmd += " --resource-group=%s" % config["resource_group"]
+    cmd += " --resource-group=%s" % config["acs_resource_group"]
     cmd += " --name=%s" % config["cluster_name"]
     cmd += " --agent-count=%d" % config["worker_node_num"]
     cmd += " --master-count=%d" % config["master_node_num"]
