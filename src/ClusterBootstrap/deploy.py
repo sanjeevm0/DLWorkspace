@@ -1937,7 +1937,7 @@ def acs_post_deploy():
 	# Label nodes
 	ip = get_nodes_from_acs("")
 	acs_label_webui()
-	kubernetes_label_nodes("active", [], args.yes )	
+	kubernetes_label_nodes("active", [], args.yes)	
 
 	# Copy files, etc.
 	get_nodes_from_acs()
