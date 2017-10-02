@@ -19,14 +19,14 @@ Here is a few short video clips that can quickly explain DLWorkspace. Note the P
 
 ## [DLWorkspace Cluster Deployment](deployment/Readme.md)
 
-* [Azure Cluster](deployment/Azure/Readme.md) [Recommended]
+* [Azure Cluster](deployment/Azure/Readme.md) 
 * [Azure Container Service](deployment/ACS/Readme.md)
-* [On prem, Ubuntu Cluster](deployment/Ubuntu.md)
+* [On prem, Ubuntu Cluster](deployment/On-Prem/Ubuntu.md)
+* [Single Ubuntu Computer](deployment/On-Prem/SingleUbuntu.md)
 
-## Known Issues
+## [Frequently Asked Questions](KnownIssues/Readme.md)
 
-* [Deployment Issue](deployment/Deployment_Issue.md)
-* Container Issue: [Zombie Process](KnownIssues/zombie_process.md)
+## [User Guide and Frequently Asked Questions](Users/Readme.md)
 
 ## Presentation
 
