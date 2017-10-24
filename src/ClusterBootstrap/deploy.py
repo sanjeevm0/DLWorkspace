@@ -42,8 +42,8 @@ import launch_glusterfs
 import az_tools
 import acs_tools
 
-capacityMatch = re.compile("\d+[M|G]B")
-digitsMatch = re.compile("\d+")
+capacityMatch = re.compile("\d+\.?\d*\s*[K|M|G|T|P]B")
+digitsMatch = re.compile("\d+\.?\d*")
 defanswer = ""
 ipAddrMetaname = "hostIP"
 
@@ -297,10 +297,25 @@ default_config_parameters = {
 		},
 		"hdfs" : {
 			"fstaboptions" : "allow_other,usetrash,rw 2 0",
-			"options": "rw -ousetrash"
+			"options": "rw -ousetrash -obig_writes -oinitchecks",
 		},
 		
 	},
+
+	"mountdescription" : {
+		"azurefileshare" : "Azure file storage", 
+		"glusterfs" : "GlusterFS (replicated distributed storage)", 
+		"nfs" : "NFS (remote file share)",
+		"hdfs" : "Hadoop file system (replicated distribute storage).", 
+		"local" : "Local SSD. ", 
+		"localHDD" : "Local HDD. ", 
+		"emptyDir" : "Kubernetes emptyDir (folder will be erased after job termination).", 
+	}, 
+
+	"mounthomefolder" : "yes", 
+	# Mount point to be deployed to container. 
+	"deploymounts" : [ ], 
+
 	
 	# folder where automatic share script will be located
 	"folder_auto_share" : "/opt/auto_share", 
@@ -367,8 +382,10 @@ default_config_parameters = {
 	"kube_addons" : ["/opt/addons/kube-addons/dashboard.yaml", 
 					 "/opt/addons/kube-addons/dns-addon.yaml",
 					 "/opt/addons/kube-addons/kube-proxy.json",
-					 "/opt/addons/kube-addons/heapster-deployment.json",
-					 "/opt/addons/kube-addons/heapster-svc.json"
+					 "/opt/addons/kube-addons/collectd.yaml",
+					 "/opt/addons/kube-addons/grafana.yaml",
+					 "/opt/addons/kube-addons/heapster.yaml",
+					 "/opt/addons/kube-addons/influxdb.yaml",
 					 ],
 
     "Authentications": {
@@ -482,9 +499,9 @@ scriptblocks = {
 		"-y deploy",
 		"-y updateworker",
 		"-y kubernetes labels",
+		"webui",
 		"docker push restfulapi",
 		"docker push webui",
-		"webui",
 		"mount", 
   		"kubernetes start jobmanager",
   		"kubernetes start restfulapi",
@@ -525,6 +542,7 @@ scriptblocks = {
 		"kubernetes stop restfulapi",
 		"kubernetes stop jobmanager",
 		"webui",
+		"sleep 30", 
 		"kubernetes start jobmanager",
 		"kubernetes start restfulapi",
 		"kubernetes start webportal",
@@ -535,9 +553,9 @@ scriptblocks = {
 		"-y updateworker",
 		"-y kubernetes labels",
 		"mount",
+		"webui",
 		"docker push restfulapi",
 		"docker push webui",
-		"webui",
 		"kubernetes start freeflow",
 		"kubernetes start jobmanager",
 		"kubernetes start restfulapi",
@@ -592,14 +610,21 @@ def expand_path_in_config(key_in_config):
 		raise Exception("Error: no %s in config " % key_in_config)
 
 def parse_capacity_in_GB( inp ):
+	# print "match capacity of %s" % inp
 	mt = capacityMatch.search(inp)
 	if mt is None: 
 		return 0.0
 	else:
 		digits = digitsMatch.search(mt.group(0)).group(0)
-		val = int(digits)
+		val = float(digits)
 		if "GB" in mt.group(0):
 			return float(val)
+		elif "TB" in mt.group(0):
+			return float(val) * 1000.0
+		elif "PB" in mt.group(0):
+			return float(val) * 1000000.0
+		elif "KB" in mt.group(0):
+			return float(val) / 1000000.0
 		else:
 			return float(val) / 1000.0
 
@@ -765,7 +790,7 @@ default_config_mapping = {
 	"pxeserverip": (["pxeserver"], lambda x: fetch_dictionary(x,["ip"])), 
 	"pxeserverrootpasswd": (["pxeserver"], lambda x: get_root_passwd()), 
 	"pxeoptions": (["pxeserver"], lambda x: "" if fetch_dictionary(x,["options"]) is None else fetch_dictionary(x,["options"])), 
-	"hdfs_cluster_name" : ( ["cluster_name"], lambda x:x ), 
+	"hdfs_cluster_name" : ( ["cluster_name"], lambda x:x ),     
 }
 	
 # Merge entries in config2 to that of config1, if entries are dictionary. 
@@ -1056,7 +1081,6 @@ def init_deployment():
 
 	add_additional_cloud_config()
 	add_kubelet_config()
-
 	template_file = "./template/cloud-config/cloud-config-worker.yml"
 	target_file = "./deploy/cloud-config/cloud-config-worker.yml"
 	utils.render_template( template_file, target_file ,config)
@@ -1203,8 +1227,7 @@ def get_worker_nodes(clusterId):
 	else:
 		return get_worker_nodes_from_config(clusterId)
 
-def get_nodes(clusterId):
-	nodes = get_ETCD_master_nodes(clusterId) + get_worker_nodes(clusterId)
+def limit_nodes(nodes):
 	if limitnodes is not None:
 		matchFunc = re.compile(limitnodes, re.IGNORECASE)
 		usenodes = []
@@ -1214,6 +1237,13 @@ def get_nodes(clusterId):
 		nodes = usenodes
 		if verbose:
 			print "Operate on: %s" % nodes
+		return usenodes
+	else:
+		return nodes
+
+def get_nodes(clusterId):
+	nodes = get_ETCD_master_nodes(clusterId) + get_worker_nodes(clusterId)
+	nodes = limit_nodes(nodes)
 	return nodes
 
 def check_master_ETCD_status():
@@ -1330,6 +1360,9 @@ def gen_configs():
 	#config["api_servers"] = ",".join(["https://"+x for x in config["kubernetes_master_node"]])
 	config["api_servers"] = "https://"+config["kubernetes_master_node"][0]+":"+str(config["k8sAPIport"])
 	config["etcd_endpoints"] = ",".join(["https://"+x+":"+config["etcd3port1"] for x in config["etcd_node"]])
+
+	config["webportal_node"] = None if len(get_node_lists_for_service("webportal"))==0 else get_node_lists_for_service("webportal")[0]
+
 
 	if os.path.isfile(config["ssh_cert"]+".pub"):
 		f = open(config["ssh_cert"]+".pub")
@@ -1749,6 +1782,7 @@ def update_worker_nodes( nargs ):
 	get_hyperkube_docker()
 
 	workerNodes = get_worker_nodes(config["clusterId"])
+	workerNodes = limit_nodes(workerNodes)
 	for node in workerNodes:
 		if in_list(node, nargs):
 			update_worker_node(node)
@@ -1763,6 +1797,7 @@ def update_worker_nodes( nargs ):
 def reset_worker_nodes():
 	utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
 	workerNodes = get_worker_nodes(config["clusterId"])
+	workerNodes = limit_nodes(workerNodes)
 	for node in workerNodes:
 		reset_worker_node(node)
 
@@ -2106,17 +2141,26 @@ def get_mount_fileshares(curNode = None):
 					fstab += "%s:/%s %s /nfsmnt nfs %s\n" % (v["server"], v["filesharename"], curphysicalmountpoint, options)
 				else:
 					errorMsg = "nfs fileshare %s, there is no filesharename or server parameter" % (k)
-			elif v["type"] == "hdfs" and "server" in v:
+			elif v["type"] == "hdfs":
 				allmountpoints[k] = copy.deepcopy( v )
+				if "server" not in v or v["server"] =="":
+					hdfsconfig = generate_hdfs_config( config, None)
+					allmountpoints[k]["server"] = []
+					for ( k1,v1) in hdfsconfig["namenode"].iteritems():
+						if k1.find("namenode")>=0:
+							allmountpoints[k]["server"].append(v1)
 				bMount = True
 				options = fetch_config(["mountconfig", "hdfs", "options"])
 				allmountpoints[k]["options"] = options
 				fstaboptions = fetch_config(["mountconfig", "hdfs", "fstaboptions"])
-				fstab += "hadoop-fuse-dfs#dfs://%s %s fuse %s\n" % (v["server"], curphysicalmountpoint, fstaboptions)
-			elif v["type"] == "local" and "device" in v:
+				fstab += "hadoop-fuse-dfs#hdfs://%s %s fuse %s\n" % (allmountpoints[k]["server"][0], curphysicalmountpoint, fstaboptions)
+			elif (v["type"] == "local" or v["type"] == "localHDD") and "device" in v:
 				allmountpoints[k] = copy.deepcopy( v )
 				bMount = True
 				fstab += "%s %s ext4 defaults 0 0\n" % (v["device"], curphysicalmountpoint)				
+			elif v["type"] == "emptyDir":
+				allmountpoints[k] = copy.deepcopy( v )
+				bMount = True
 			else:
 				errorMsg = "Error: Unknown or missing critical parameter in fileshare %s with type %s" %( k, v["type"])
 			if not (errorMsg is None):
@@ -2248,19 +2292,26 @@ def mount_fileshares_by_service(perform_mount=True):
 			utils.SSH_exec_cmd( config["ssh_cert"], config["admin_username"], node, "sudo mkdir -p %s; " % config["folder_auto_share"] )
 			utils.render_template_directory("./template/storage/auto_share", "./deploy/storage/auto_share", config)
 			with open("./deploy/storage/auto_share/mounting.yaml",'w') as datafile:
-				yaml.dump(mountconfig, datafile, default_flow_style=False)			
+				yaml.dump(mountconfig, datafile, default_flow_style=False)	
+			remotecmd += "sudo systemctl stop auto_share.timer; "
+			# remotecmd += "sudo systemctl stop auto_share.service; "
+			if len(remotecmd)>0:
+				utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, remotecmd)
+			remotecmd = ""			
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/auto_share.timer","/etc/systemd/system/auto_share.timer", config["admin_username"], node )
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/auto_share.target","/etc/systemd/system/auto_share.target", config["admin_username"], node )
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/auto_share.service","/etc/systemd/system/auto_share.service", config["admin_username"], node )
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/logging.yaml",os.path.join(config["folder_auto_share"], "logging.yaml"), config["admin_username"], node )
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/auto_share.py",os.path.join(config["folder_auto_share"], "auto_share.py"), config["admin_username"], node )
+			utils.sudo_scp( config["ssh_cert"], "./template/storage/auto_share/glusterfs.mount",os.path.join(config["folder_auto_share"], "glusterfs.mount"), config["admin_username"], node )
 			utils.sudo_scp( config["ssh_cert"], "./deploy/storage/auto_share/mounting.yaml",os.path.join(config["folder_auto_share"], "mounting.yaml"), config["admin_username"], node )
 			remotecmd += "sudo chmod +x %s; " % os.path.join(config["folder_auto_share"], "auto_share.py")
 			remotecmd += "sudo " + os.path.join(config["folder_auto_share"], "auto_share.py") + "; " # run it once now
 			remotecmd += "sudo systemctl daemon-reload; "
+			remotecmd += "sudo rm /opt/auto_share/lock; "
 			remotecmd += "sudo systemctl enable auto_share.timer; "
 			remotecmd += "sudo systemctl restart auto_share.timer; "
-			remotecmd += "sudo systemctl stop auto_share.service; "
+			# remotecmd += "sudo systemctl stop auto_share.service; "
 			if len(remotecmd)>0:
 				utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, remotecmd)
 			# We no longer recommend to insert fstabl into /etc/fstab file, instead, 
@@ -2319,7 +2370,7 @@ def link_fileshares(allmountpoints, bForce=False):
 			remotecmd = ""
 			if bForce:
 				for k,v in allmountpoints.iteritems():
-					if "mountpoints" in v:
+					if "mountpoints" in v and v["type"]!="emptyDir":
 						for basename in v["mountpoints"]:
 							dirname = os.path.join(v["curphysicalmountpoint"], basename )
 							remotecmd += "sudo rm %s; " % dirname
@@ -2328,7 +2379,7 @@ def link_fileshares(allmountpoints, bForce=False):
 				
 			output = utils.SSH_exec_cmd_with_output(config["ssh_cert"], config["admin_username"], node, "sudo mount" )
 			for k,v in allmountpoints.iteritems():
-				if "mountpoints" in v:
+				if "mountpoints" in v and v["type"]!="emptyDir":
 					if output.find(v["curphysicalmountpoint"])<0:
 						print "!!!Warning!!! %s has not been mounted at %s " % (k, v["curphysicalmountpoint"])
 					else:
@@ -2498,6 +2549,8 @@ def repartition_nodes(nodes, nodesinfo, partitionConfig):
 			totalPartitionSize = sum( partitionSize )
 			start = 0
 			npart = len(partitionSize)
+			if npart > 0:
+				cmd += "sudo parted -s " + deviceinfo["name"] + " mklabel gpt; "
 			for i in range(npart):
 				partSize = partitionSize[i]
 				end = int( math.floor( start + (partSize/totalPartitionSize)*100.0 + 0.5 ))
@@ -2505,7 +2558,6 @@ def repartition_nodes(nodes, nodesinfo, partitionConfig):
 					end = 100
 				if end > 100:
 					end = 100
-				cmd += "sudo parted -s " + deviceinfo["name"] + " mklabel gpt; "
 				cmd += "sudo parted -s --align optimal " + deviceinfo["name"] + " mkpart logical " + str(start) +"% " + str(end)+"% ; "
 				start = end
 		if len(cmd)>0:
@@ -2636,8 +2688,7 @@ def format_mount_partition_volume( nodes, deviceSelect, format=True ):
 		hdfsconfig = {} 
 		for volume in volumes:
 			# mount remote volumes. 
-			devicename = volume[volume.rfind("/")+1:]
-			mountpoint = os.path.join( config["local-mount-path"], devicename )
+			mountpoint = config["hdfs"]["datadir"][volume]
 			remotecmd += "sudo mkdir -p %s; " % mountpoint
 			remotecmd += "sudo mount %s %s; " % ( volume, mountpoint )
 		utils.SSH_exec_cmd( config["ssh_cert"], config["admin_username"], node, remotecmd, showCmd=verbose )
@@ -2658,8 +2709,7 @@ def unmount_partition_volume( nodes, deviceSelect ):
 		remotecmd = ""
 		for volume in volumes:
 			# mount remote volumes. 
-			devicename = volume[volume.rfind("/")+1:]
-			mountpoint = os.path.join( config["local-mount-path"], devicename )
+			mountpoint = config["hdfs"]["datadir"][volume]
 			remotecmd += "sudo umount %s; " % ( mountpoint )
 		utils.SSH_exec_cmd( config["ssh_cert"], config["admin_username"], node, remotecmd, showCmd=verbose )
 		remove_fstab_section( node, "MOUNTLOCALDISK" )
@@ -2667,7 +2717,14 @@ def unmount_partition_volume( nodes, deviceSelect ):
 def generate_hdfs_nodelist( nodes, port, sepchar):
 	return sepchar.join( map( lambda x: x+":"+str(port), nodes))
 
+def generate_hdfs_containermounts():
+	config["hdfs"]["containermounts"] = {}
+	for (k,v) in config["hdfs"]["datadir"].iteritems():
+		volumename = k[1:].replace("/","-")
+		config["hdfs"]["containermounts"][volumename] = v
+
 def generate_hdfs_config( nodes, deviceSelect):
+	generate_hdfs_containermounts()
 	hdfsconfig = copy.deepcopy( config["hdfsconfig"] )
 	hdfsconfig["hdfs_cluster_name"] = config["hdfs_cluster_name"]
 	zknodes = get_node_lists_for_service("zookeeper")
@@ -2684,7 +2741,7 @@ def generate_hdfs_config( nodes, deviceSelect):
 		print "Journal nodes: " + zknodelist
 	journalnodelist = generate_hdfs_nodelist( journalnodes, fetch_config( ["hdfsconfig", "journalnode", "port"]), ";")
 	hdfsconfig["journalnode"]["nodes"] = journalnodelist
-	config["hdfsconfig"]["namenode"]["namenode1"] = hdfsconfig["namenode"]["namenode1"]
+	config["hdfsconfig"]["namenode"] = hdfsconfig["namenode"]
 	return hdfsconfig
 
 # Write configuration for each hdfs node. 
@@ -3047,6 +3104,7 @@ def render_service_templates():
 	allnodes = get_nodes(config["clusterId"])
 	# Additional parameter calculation
 	set_zookeeper_cluster()
+	generate_hdfs_containermounts()
 	# Multiple call of render_template will only render the directory once during execution. 
 	utils.render_template_directory( "./services/", "./deploy/services/", config)
 	
@@ -3299,7 +3357,7 @@ def run_docker_image( imagename, native = False, sudo = False ):
 		if native: 
 			os.system( "docker run --rm -ti " + matches[0] )
 		else:
-			run_docker( matches[0], prompt = imagename, dockerConfig = dockerConfig, sudo = sudo )	
+			run_docker( matches[0], prompt = imagename, dockerConfig = dockerConfig, sudo = sudo )		
 
 def run_command( args, command, nargs, parser ):
 	nocache = args.nocache
@@ -3444,6 +3502,15 @@ def run_command( args, command, nargs, parser ):
 			parser.print_help()
 			print "Error: build target %s is not recognized. " % nargs[0] 
 			exit()
+
+	elif command == "scan":
+		if len(nargs) ==1:
+			utils.scan_nodes( config["ssh_cert"], config["admin_username"], nargs[0])
+		else:
+			parser.print_help()
+			print "Error: scan need one parameter with format x.x.x.x/n. "
+			exit()
+		
 			
 	elif command == "updateworker":
 		response = raw_input_with_default("Deploy Worker Nodes (y/n)?")
@@ -3770,6 +3837,7 @@ def run_command( args, command, nargs, parser ):
 				for service in allservices:
 					servicenames.append(service)
 				# print servicenames
+			generate_hdfs_containermounts()
 			if nargs[0] == "start":
 				if args.force and "hdfsformat" in servicenames:
 					print ("This operation will WIPEOUT HDFS namenode, and erase all data on the HDFS cluster,  "  )
