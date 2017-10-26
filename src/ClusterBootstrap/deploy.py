@@ -2718,10 +2718,16 @@ def generate_hdfs_nodelist( nodes, port, sepchar):
 	return sepchar.join( map( lambda x: x+":"+str(port), nodes))
 
 def generate_hdfs_containermounts():
-	config["hdfs"]["containermounts"] = {}
-	for (k,v) in config["hdfs"]["datadir"].iteritems():
-		volumename = k[1:].replace("/","-")
-		config["hdfs"]["containermounts"][volumename] = v
+	if not ("hdfs" in config):
+		config["hdfs"] = {}
+		#print "HDFS: {0}".format(config["hdfs"])
+		config["hdfs"]["containermounts"] = {}
+		config["hdfs"]["datadir"] = {}
+	else:
+		config["hdfs"]["containermounts"] = {}
+		for (k,v) in config["hdfs"]["datadir"].iteritems():
+			volumename = k[1:].replace("/","-")
+			config["hdfs"]["containermounts"][volumename] = v
 
 def generate_hdfs_config( nodes, deviceSelect):
 	generate_hdfs_containermounts()
