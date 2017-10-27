@@ -1,4 +1,4 @@
-FROM mlcloudreg.westus.cloudapp.azure.com:5000/dlws-sanjeevm/gobld:latest
+FROM mlcloudreg.westus.cloudapp.azure.com:5000/{{cnf["cluster_name"]}}/gobld:latest
 MAINTAINER Sanjeev Mehrotra <sanjeevm0@hotmail.com>
 
 # Get Kubernetes
