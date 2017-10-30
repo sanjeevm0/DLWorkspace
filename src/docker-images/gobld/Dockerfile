@@ -15,7 +15,7 @@ RUN apt-get install -y --no-install-recommends software-properties-common
 RUN update-ca-certificates
 
 # Install Go
-ENV GOVERSION=1.7.4
+ENV GOVERSION=1.9
 ENV GOOS=linux
 ENV GOARCH=amd64
 RUN wget https://storage.googleapis.com/golang/go$GOVERSION.$GOOS-$GOARCH.tar.gz
