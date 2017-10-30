@@ -400,6 +400,8 @@ default_config_parameters = {
 					 ],
 
 	"k8s-bld" : "k8s-temp-bld",
+	"k8s-gitrepo" : "sanjeevm0/kubernetes",
+	"k8s-gitbranch" : "release-1.7",
 
     "Authentications": {
         "Live-login-windows": {
