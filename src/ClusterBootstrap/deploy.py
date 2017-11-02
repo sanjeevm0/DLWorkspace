@@ -1976,7 +1976,7 @@ def copy_list_of_files(listOfFiles, node):
 		copy_files = [s.split(",") for s in f.readlines() if len(s.split(",")) == 2]
 	for (source, target) in copy_files:
 		if (os.path.isfile(source.strip()) or os.path.exists(source.strip())):
-			rmt_cp(node, source, target)
+			rmt_cp(node, source.strip(), target.strip())
 
 def copy_list_of_files_to_nodes(listOfFiles, nodes):
 	with open(listOfFiles, "r") as f:
@@ -1984,7 +1984,7 @@ def copy_list_of_files_to_nodes(listOfFiles, nodes):
 	for node in nodes:
 		for (source, target) in copy_files:
 			if (os.path.isfile(source.strip()) or os.path.exists(source.strip())):
-				rmt_cp(node, source, target)
+				rmt_cp(node, source.strip(), target.strip())
 
 # run scripts
 def run_script_on_node(script, node):
@@ -2085,6 +2085,7 @@ def acs_install_gpu():
 	for node in nodes:
 		#exec_rmt_cmd(node, "curl -L -sf https://raw.githubusercontent.com/ritazh/acs-k8s-gpu/master/install-nvidia-driver.sh | sudo sh")
 		run_script(node, ["./scripts/prepare_ubuntu.sh"], True)
+		utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, "sudo systemctl restart kubelet.service")
 
 def acs_get_jobendpt(jobId):
 	get_nodes_from_acs("")
