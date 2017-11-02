@@ -580,7 +580,7 @@ scriptblocks = {
 	"acs": [
 		"acs deploy",
 		"acs postdeploy",
-		"acs gpudrivers",
+		"acs prepare",
 		"acs storagemount",
 		"acs freeflow",
 		"acs bldwebui",
@@ -2080,11 +2080,13 @@ def acs_attach_dns_name():
 	for node in config["worker_node"]:
 		acs_tools.acs_attach_dns_to_node(node)
 
-def acs_install_gpu():
-	nodes = get_worker_nodes(config["clusterId"])
+# Install needed components including GPU drivers if needed
+def acs_prepare_machines():
+	nodes = get_nodes(config["clusterId"])
 	for node in nodes:
 		#exec_rmt_cmd(node, "curl -L -sf https://raw.githubusercontent.com/ritazh/acs-k8s-gpu/master/install-nvidia-driver.sh | sudo sh")
 		run_script(node, ["./scripts/prepare_ubuntu.sh"], True)
+		# restart kubelet incase GPU installed
 		utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, "sudo systemctl restart kubelet.service")
 
 def acs_get_jobendpt(jobId):
@@ -3849,9 +3851,8 @@ def run_command( args, command, nargs, parser ):
 				link_fileshares(allmountpoints, args.force)		
 			elif nargs[0]=="bldwebui":
 				run_script_blocks(scriptblocks["bldwebui"])
-			elif nargs[0]=="gpudrivers":
-				if (config["acs_isgpu"]):
-					acs_install_gpu()
+			elif nargs[0]=="prepare":
+				acs_prepare_machines()
 			elif nargs[0]=="addons":
 				# deploy addons / config changes (i.e. weave.yaml)
 				acs_deploy_addons()
