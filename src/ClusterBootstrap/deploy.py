@@ -580,8 +580,8 @@ scriptblocks = {
 	"acs": [
 		"acs deploy",
 		"acs postdeploy",
-		"acs storagemount",
 		"acs gpudrivers",
+		"acs storagemount",
 		"acs freeflow",
 		"acs bldwebui",
 		"acs restartwebui",
@@ -812,7 +812,7 @@ default_config_mapping = {
 }
 
 def isInstallOnCoreOS():
-	return config["platform-scripts"]!="ubuntu"
+	return config["platform-scripts"]!="ubuntu" and config["platform-scripts"]!="acs"
 	
 # Merge entries in config2 to that of config1, if entries are dictionary. 
 # If entry is list or other variable, it will just be replaced. 
@@ -1477,6 +1477,8 @@ def deploy_master(kubernetes_master):
 def get_cni_binary():
 	os.system("mkdir -p ./deploy/bin")
 	urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/containernetworking/cni-amd64-v0.5.2.tgz", "./deploy/bin/cni-amd64-v0.5.2.tgz")
+	if verbose:
+		print "Extracting CNI binaries"
 	os.system("tar -zxvf ./deploy/bin/cni-amd64-v0.5.2.tgz -C ./deploy/bin")
 
 
@@ -1964,6 +1966,8 @@ def exec_rmt_cmd(node, cmd):
 	utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, cmd)
 
 def rmt_cp(node, source, target):
+	if verbose:
+		print "Copy file {0} to node {1} as file {2}".format(source, node, target)
 	utils.sudo_scp(config["ssh_cert"], source, target, config["admin_username"], node)
 
 # copy list of files to a node
@@ -1984,10 +1988,14 @@ def copy_list_of_files_to_nodes(listOfFiles, nodes):
 
 # run scripts
 def run_script_on_node(script, node):
+	if verbose:
+		print "Running script {0} on node {1}".format(script, node)
 	utils.SSH_exec_script(config["ssh_cert"], config["admin_username"], node, script)
 
 def run_script_on_nodes(script, nodes):
 	for node in nodes:
+		if verbose:
+			print "Running script {0} on node {1}".format(script, node)
 		utils.SSH_exec_script(config["ssh_cert"], config["admin_username"], node, script)
 
 # deployment
