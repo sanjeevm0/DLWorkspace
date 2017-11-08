@@ -7,8 +7,8 @@ def getresp(url, verbose):
     curlCmd = ['curl']
     curlCmd.append("https://api.github.com/" + url)
     if verbose:
-        print "Command: {0}".format(join(cmd))
-    output = subprocess.check_output(cmd)
+        print "Command: {0}".format(" ".join(curlCmd))
+    output = subprocess.check_output(curlCmd)
     if verbose:
         print "Output: {0}".format(output)
     return yaml.load(output)
@@ -21,7 +21,7 @@ def github_hash(repo, branch, verbose=True) :
     else:
         # try as tag
         retObj = getresp("repos/" + repo + "/git/refs/tags/" + branch, verbose)
-        if ("object" in retObj and "sha" in ret["object"]):
+        if ("object" in retObj and "sha" in retObj["object"]):
             ret = getresp("repos/" + repo + "/git/tags/" + retObj["object"]["sha"], verbose)
             if ("object" in ret and "sha" in ret["object"]):
                 sha = ret["object"]["sha"]
