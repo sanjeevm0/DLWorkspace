@@ -9,7 +9,7 @@
         $.ajax({
             url: "/api/dlws/KillJob?jobId=" + jobId,
             dataType: 'json',
-            timeout: 30000 //10 second timeout,
+            timeout: 30000 //30 second timeout,
         }).done(
             function (json) {
                 alert(json.result);
@@ -20,7 +20,7 @@
         $.ajax({
             url: "/api/dlws/ApproveJob?jobId=" + jobId,
             dataType: 'json',
-            timeout: 30000 //10 second timeout,
+            timeout: 30000 //30 second timeout,
         }).done(
             function (json) {
                 alert(json.log);
@@ -141,10 +141,21 @@
     }
 
     function buildTables() {
+        var apiurl = "/api/dlws/ListJobs"
+
+        if (!document.getElementById('chkArchivedJobs').checked) {
+            apiurl += "?num=20"
+        }
+
+        if (showAll)
+        {
+            apiurl = "/api/dlws/ListAllJobs"
+        }
+
         $.ajax({
-            url: (showAll ? "/api/dlws/ListAllJobs" : "/api/dlws/ListJobs"),
+            url: (apiurl),
             dataType: 'json',
-            timeout: 30000 //120 second timeout,
+            timeout: 15000 
         }).done(
             function (json) {
 
@@ -157,11 +168,19 @@
             });
     }
 
+
+    function refreshJobs()
+    {
+        if (!document.getElementById('chkArchivedJobs').checked || showAll) {
+            buildTables();
+        }
+    }
+
     $(document).ready(function () {
         ChangeMode(false)
         var refresh = setInterval(function () {
-            buildTables();
-        }, 3000);
+            refreshJobs();
+        }, 15000);
         $(document).tooltip({
             track: true
         });
@@ -221,8 +240,15 @@
 </div>
 
 <div id="finished-job" hidden>
-
-    <p> <b>Finished Jobs</b></p>
+    <p>
+        <b>Finished Jobs</b>
+        <div style="float:right">
+            <input type="checkbox" id="chkArchivedJobs" onclick="buildTables()"/>
+            <label>
+                Show all finsihed jobs.
+            </label>
+        </div>
+    </p>
     <table id="finished-job-table" class="table table-bordered table-condensed table-hover table-striped">
     </table>
 </div>

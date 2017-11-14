@@ -226,15 +226,49 @@ class SubmitJob(Resource):
 ##
 api.add_resource(SubmitJob, '/SubmitJob')
 
+class PostJob(Resource):
+	def post(self):
+		params = request.get_json(force=True)
+		monitor = yaml.safe_dump(params, default_flow_style=False)
+		logger.info("Post Job" )
+		logger.info(monitor )
+		ret = {}
+		if True:
+			output = JobRestAPIUtils.SubmitJob(json.dumps(params))
+			
+			if "jobId" in output:
+				ret["jobId"] = output["jobId"]
+			else:
+				if "error" in output:
+					ret["error"] = "Cannot create job!" + output["error"]
+				else:
+					ret["error"] = "Cannot create job!"
+			logger.info("Submit job through restapi, output is %s, ret is %s" %(output, ret) )
+		resp = jsonify(ret)
+		resp.headers["Access-Control-Allow-Origin"] = "*"
+		resp.headers["dataType"] = "json"		
+		return resp
+##
+## Actually setup the Api resource routing here
+##
+api.add_resource(PostJob, '/PostJob')
+
 
 
 # shows a list of all todos, and lets you POST to add new tasks
 class ListJobs(Resource):
 	def get(self):
 		parser.add_argument('userName')
+		parser.add_argument('num')
 		args = parser.parse_args()	
+		num = None
+		if args["num"] is not None:
+			try:
+				num = int(args["num"])
+			except:
+				pass
 		if args["userName"] is not None and len(args["userName"].strip()) > 0:
-			jobs = JobRestAPIUtils.GetJobList(args["userName"])
+			jobs = JobRestAPIUtils.GetJobList(args["userName"],num)
 		else:
 			jobs = []
 		jobList = []
@@ -274,12 +308,13 @@ class ListJobs(Resource):
 		ret["runningJobs"] = runningJobs
 		ret["finishedJobs"] = finishedJobs
 		ret["visualizationJobs"] = visualizationJobs
+		ret["meta"] = {"queuedJobs": len(queuedJobs),"runningJobs": len(runningJobs),"finishedJobs": len(finishedJobs),"visualizationJobs": len(visualizationJobs)}
 		resp = jsonify(ret)
 		resp.headers["Access-Control-Allow-Origin"] = "*"
 		resp.headers["dataType"] = "json"
 
-
 		return resp
+
 ##
 ## Actually setup the Api resource routing here
 ##
