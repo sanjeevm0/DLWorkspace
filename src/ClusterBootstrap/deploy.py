@@ -2017,8 +2017,7 @@ def acs_untaint_nodes():
 # other config post deploy -- ACS cluster is complete
 # Run prescript, copyfiles, postscript
 def acs_post_deploy():
-	# Attach DNS name to nodes
-	acs_attach_dns_name()
+
 
 	# Label nodes
 	ip = acs_tools.get_nodes_from_acs("")
@@ -2043,16 +2042,6 @@ def acs_post_deploy():
 		            config["kubernetes_master_node"])
 	deploy_on_nodes(config["worker_predeploy"], config["worker_filesdeploy"], config["worker_postdeploy"],
 	                config["worker_node"])
-
-def acs_attach_dns_name():
-	acs_tools.get_nodes_from_acs()
-	firstMasterNode = config["kubernetes_master_node"][0]
-	acs_tools.acs_attach_dns_to_node(firstMasterNode, config["master_dns_name"])
-	for i in range(len(config["kubernetes_master_node"])):
-		if (i != 0):
-			acs_tools.acs_attach_dns_to_node(config["kubernetes_master_node"][i])
-	for node in config["worker_node"]:
-		acs_tools.acs_attach_dns_to_node(node)
 
 # Install needed components including GPU drivers if needed
 def acs_prepare_machines():
@@ -3841,7 +3830,7 @@ def run_command( args, command, nargs, parser ):
 			elif nargs[0]=="jobendpt":
 				acs_get_jobendpt(nargs[1])
 			elif nargs[0]=="dns":
-				acs_attach_dns_name()
+				acs_tools.acs_attach_dns_name()
 			elif nargs[0]=="postdeploy":
 				acs_post_deploy()
 			elif nargs[0]=="genconfig":
