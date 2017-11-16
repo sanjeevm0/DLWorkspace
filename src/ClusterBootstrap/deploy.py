@@ -1179,8 +1179,6 @@ def get_ETCD_master_nodes_from_config(clusterId):
 	return Nodes
 
 def get_ETCD_master_nodes(clusterId):
-	#if config["isacs"]:
-	#	return acs_tools.get_nodes_from_acs('master')
 	if "etcd_node" in config:
 		Nodes = config["etcd_node"]
 		config["kubernetes_master_node"] = Nodes
@@ -1214,8 +1212,6 @@ def get_worker_nodes_from_config(clusterId):
 	return Nodes
 
 def get_worker_nodes(clusterId):
-	#if config["isacs"]:
-	#	return acs_tools.get_nodes_from_acs('agent')
 	if "worker_node" in config:
 		return config["worker_node"]
 	if "useclusterfile" not in config or not config["useclusterfile"]:
@@ -1247,9 +1243,6 @@ def check_master_ETCD_status():
 	etcdNodes = []
 	print "==============================================="
 	print "Checking Available Nodes for Deployment..."
-	#if config["isacs"]:
-	#	acs_tools.get_nodes_from_acs("")
-	#elif "clusterId" in config:
 	get_ETCD_master_nodes(config["clusterId"])
 	get_worker_nodes(config["clusterId"])
 	print "==============================================="
@@ -3099,17 +3092,18 @@ def run_kubectl( commands ):
 	run_kube( "./deploy/bin/kubectl", commands)
 	
 def kubernetes_get_node_name(node):
-	if config["isacs"]:
-		return config["nodenames_from_ip"][node]
+	kube_node_name = ""
+	domain = get_domain()
+	if len(domain) < 2: 
+		kube_node_name = node
+	elif domain in node:
+		# print "Remove domain %d" % len(domain)
+		kube_node_name = node[:-(len(domain))]
 	else:
-		domain = get_domain()
-		if len(domain) < 2: 
-			return node
-		elif domain in node:
-			# print "Remove domain %d" % len(domain)
-			return node[:-(len(domain))]
-		else:
-			return node
+		kube_node_name = node
+	if conifg["isacs"]:
+		kube_node_name = config["acs_node_from_dns"][kube_node_name]
+	return kube_node_name
 
 def set_zookeeper_cluster():
 	nodes = get_node_lists_for_service("zookeeper")
