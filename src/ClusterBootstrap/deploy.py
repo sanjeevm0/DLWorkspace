@@ -592,8 +592,8 @@ scriptblocks = {
 		"acs prepare",
 		"acs storagemount",
 		"acs freeflow",
-		"acs bldwebui",
-		"acs restartwebui",
+		"bldwebui",
+		"restartwebui",
 	],
 }
 
