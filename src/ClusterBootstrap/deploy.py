@@ -1995,14 +1995,14 @@ def acs_deploy_addons():
 
 def acs_label_webui():
 	for n in config["kubernetes_master_node"]:
-		nodeName = config["nodenames_from_ip"][n]
+		nodeName = kubernetes_get_node_name(n)
 		if verbose:
 			print "Label node: "+nodeName
 		label_webUI(nodeName)
 
 def acs_untaint_nodes():
 	for n in config["kubernetes_master_node"]:
-		nodeName = config["nodenames_from_ip"][n]
+		nodeName = kubernetes_get_node_name(n)
 		if verbose:
 			print "Untaint node: "+nodeName
 		run_kubectl(["taint nodes {0} node-role.kubernetes.io/master-".format(nodeName)])
@@ -3098,7 +3098,7 @@ def kubernetes_get_node_name(node):
 		kube_node_name = node[:-(len(domain))]
 	else:
 		kube_node_name = node
-	if conifg["isacs"]:
+	if config["isacs"]:
 		acs_tools.acs_set_node_from_dns(kube_node_name)
 		kube_node_name = config["acs_node_from_dns"][kube_node_name]
 	return kube_node_name
