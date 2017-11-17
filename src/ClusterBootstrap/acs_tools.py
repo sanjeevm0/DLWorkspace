@@ -168,8 +168,6 @@ def acs_get_ip_info_full(node):
                                 " --nic-name="+nicName+" --name="+ipConfigName)
             ipInfo[nicIndex]["ipConfigs"][ipConfigIndex]["privateIp"] = configInfo["privateIpAddress"]
             ipInfo[nicIndex]["ipConfigs"][ipConfigIndex]["publicIpInfo"] = configInfo["publicIpAddress"]
-            if configInfo["publicIpAddress"] is not None:
-                acs_get_public_ip(ipInfo[nicIndex]["ipConfigs"][ipConfigIndex], acs_get_id(configInfo["publicIpAddress"]))
             ipConfigIndex += 1
         nicIndex += 1
     return ipInfo
@@ -184,11 +182,11 @@ def acs_get_node_info(node):
 def acs_set_desired_dns(node, nodeInfo=None):
     if nodeInfo is None:
         nodeInfo = acs_get_node_info(node)
-    if "acs_node_from_dns" not in config:
-        config["acs_node_from_dns"] = {}
     if "desiredDns" not in nodeInfo:
         acs_set_nodes_info()
         if "acs_nodes" in config:
+            if "acs_node_from_dns" not in config:
+                config["acs_node_from_dns"] = {}
             isInList, index = inList(node, config["acs_master_nodes"])
             if isInList and index==0:
                 nodeInfo["desiredDns"] = config["master_dns_name"]
@@ -196,8 +194,8 @@ def acs_set_desired_dns(node, nodeInfo=None):
                 nodeInfo["desiredDns"] = node
             config["acs_node_from_dns"][nodeInfo["desiredDns"]] = node
 
-def acs_set_node_from_dns(dnsname):
-    if "acs_node_from_dns" not in config or dnsname not in config["acs_node_from_dns"]:
+def acs_set_node_from_dns(dnsname, checkForNode=True):
+    if "acs_node_from_dns" not in config or 0==len(config["acs_node_from_dns"]) or (checkForNode and (dnsname not in config["acs_node_from_dns"])):
         allnodes = acs_get_kube_nodes()
         for n in allnodes:
             acs_set_desired_dns(n)
@@ -220,9 +218,7 @@ def acs_set_node_ip_info(node, needPrivateIP):
     return nodeInfo
 
 def acs_set_desired_dns_nodes():
-    nodes = acs_get_kube_nodes()
-    for n in nodes:
-        acs_set_desired_dns(n)
+    acs_set_node_from_dns("", False)
 
 # create public ip for node
 def acs_create_public_ip(node):
@@ -414,8 +410,7 @@ def acs_get_ip_info_nodes(bNeedPrivateIP):
 
 def acs_update_machines(configLocal):
     if (not "machines" in configLocal) or (len(configLocal["machines"])==0):
-        acs_create_node_ips()
-        acs_set_nodes_info()
+        acs_set_desired_dns_nodes()
         #print "Worker: {0}".format(config["acs_agent_nodes"])
         #print "Master: {0}".format(config["acs_master_nodes"])
         configLocal["machines"] = {}
