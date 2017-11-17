@@ -114,10 +114,16 @@ default_config_parameters = {
 	"render-by-copy-ext" : { 
 		".png": True, 
 		# All in-docker file will be copied and rendered in docker.
-		".in-docker": True, },
+		".in-docker": True, 
+		".js": True, 
+		".swf": True, 
+		".gzip": True, 
+		},
 	"render-by-copy": { 
 		"gk-deploy":True, 
 		"pxelinux.0": True, 
+		"main.html": True, 
+		"uploadFile.html": True, 
 		# This template will be rendered inside container, but not at build stage
 		# "hdfs-site.xml.template": True, 		
 		},
@@ -592,8 +598,8 @@ scriptblocks = {
 		"acs prepare",
 		"acs storagemount",
 		"acs freeflow",
-		"acs bldwebui",
-		"acs restartwebui",
+		"bldwebui",
+		"restartwebui",
 	],
 }
 
@@ -908,6 +914,9 @@ def add_acs_config(command):
 		acs_tools.config = config
 		acs_tools.verbose = verbose
 
+		config["master_dns_name"] = config["cluster_name"]
+		config["useclusterfile"] = False
+
 		# Use az tools to generate default config params and overwrite if they don't exist
 		configAzure = acs_tools.acs_update_azconfig(False)
 		if verbose:
@@ -916,7 +925,10 @@ def add_acs_config(command):
 		if verbose:
 			print "Config:\n{0}".format(config)
 
-		config["master_dns_name"] = config["cluster_name"]
+		if ("resource_group" in config and "acs_resource_group" in config):
+			config["resource_group_set"] = True
+			az_tools.config["azure_cluster"]["resource_group_name"] = config["resource_group"]
+
 		config["resource_group"] = az_tools.config["azure_cluster"]["resource_group_name"]
 		config["platform-scripts"] = "acs"
 		config["WinbindServers"] = []
@@ -934,7 +946,7 @@ def add_acs_config(command):
 			config["azure-sqlservername"] = match.group(1)
 
 		# Some locations put VMs in child resource groups
-		acs_tools.acs_set_resource_grp(False)
+		acs_tools.acs_set_resource_grp(False)	
 
 		# check for GPU sku
 		match = re.match('.*\_N.*', config["acsagentsize"])
@@ -1172,49 +1184,7 @@ def get_ETCD_master_nodes_from_config(clusterId):
 	config["kubernetes_master_node"] = Nodes
 	return Nodes
 
-def get_nodes_from_acs(tomatch=""):
-	bFindNodes = True
-	if not ("acsnodes" in config):
-		machines = acs_tools.acs_get_machinesAndIPsFast()
-		config["acsnodes"] = machines
-	else:
-		bFindNodes = not (tomatch == "" or tomatch == "master" or tomatch == "agent")
-		machines = config["acsnodes"]
-	Nodes = []
-	if bFindNodes:
-		masterNodes = []
-		agentNodes = []
-		allNodes = []
-		for m in machines:
-			match = re.match('k8s-'+tomatch+'.*', m)
-			ip = machines[m]["publicip"]
-			allNodes.append(ip)
-			if not (match is None):
-				Nodes.append(ip)
-			match = re.match('k8s-master', m)
-			if not (match is None):
-				masterNodes.append(ip)
-			match = re.match('k8s-agent', m)
-			if not (match is None):
-				agentNodes.append(ip)
-		config["etcd_node"] = masterNodes
-		config["kubernetes_master_node"] = masterNodes
-		config["worker_node"] = agentNodes
-		config["all_node"] = allNodes
-	else:
-		if tomatch == "":
-			Nodes = config["all_node"]
-		elif tomatch == "master":
-			Nodes = config["kubernetes_master_node"]
-		elif tomatch == "agent":
-			Nodes = config["worker_node"]
-		else:
-			raise Exception("Wrong matching")
-	return Nodes
-
 def get_ETCD_master_nodes(clusterId):
-	if config["isacs"]:
-		return get_nodes_from_acs('master')
 	if "etcd_node" in config:
 		Nodes = config["etcd_node"]
 		config["kubernetes_master_node"] = Nodes
@@ -1248,8 +1218,6 @@ def get_worker_nodes_from_config(clusterId):
 	return Nodes
 
 def get_worker_nodes(clusterId):
-	if config["isacs"]:
-		return get_nodes_from_acs('agent')
 	if "worker_node" in config:
 		return config["worker_node"]
 	if "useclusterfile" not in config or not config["useclusterfile"]:
@@ -1281,11 +1249,8 @@ def check_master_ETCD_status():
 	etcdNodes = []
 	print "==============================================="
 	print "Checking Available Nodes for Deployment..."
-	if config["isacs"]:
-		get_nodes_from_acs("")
-	elif "clusterId" in config:
-		get_ETCD_master_nodes(config["clusterId"])
-		get_worker_nodes(config["clusterId"])
+	get_ETCD_master_nodes(config["clusterId"])
+	get_worker_nodes(config["clusterId"])
 	print "==============================================="
 	print "Activate Master Node(s): %s\n %s \n" % (len(config["kubernetes_master_node"]),",".join(config["kubernetes_master_node"]))
 	print "Activate ETCD Node(s):%s\n %s \n" % (len(config["etcd_node"]),",".join(config["etcd_node"]))
@@ -2014,7 +1979,7 @@ def deploy_on_nodes(prescript, listOfFiles, postscript, nodes):
 
 # addons
 def kube_master0_wait():
-	get_nodes_from_acs()
+	get_ETCD_master_nodes(config["clusterId"])
 	node = config["kubernetes_master_node"][0]
 	exec_rmt_cmd(node, "until curl -q http://127.0.0.1:8080/version/ ; do sleep 5; echo 'waiting for master...'; done")
 	return node
@@ -2036,14 +2001,14 @@ def acs_deploy_addons():
 
 def acs_label_webui():
 	for n in config["kubernetes_master_node"]:
-		nodeName = config["nodenames_from_ip"][n]
+		nodeName = kubernetes_get_node_name(n)
 		if verbose:
 			print "Label node: "+nodeName
 		label_webUI(nodeName)
 
 def acs_untaint_nodes():
 	for n in config["kubernetes_master_node"]:
-		nodeName = config["nodenames_from_ip"][n]
+		nodeName = kubernetes_get_node_name(n)
 		if verbose:
 			print "Untaint node: "+nodeName
 		run_kubectl(["taint nodes {0} node-role.kubernetes.io/master-".format(nodeName)])
@@ -2051,19 +2016,18 @@ def acs_untaint_nodes():
 # other config post deploy -- ACS cluster is complete
 # Run prescript, copyfiles, postscript
 def acs_post_deploy():
-	# Attach DNS name to nodes
-	acs_attach_dns_name()
+	# set nodes
+	get_nodes(config["clusterId"])
 
-	# Label nodes
-	ip = get_nodes_from_acs("")
+	# Label nodes	
 	acs_label_webui()
 	kubernetes_label_nodes("active", [], args.yes)
+
 
 	# Untaint the master nodes
 	acs_untaint_nodes()
 
 	# Copy files, etc.
-	get_nodes_from_acs()
 	gen_configs()
 	utils.render_template_directory("./template/kubelet", "./deploy/kubelet", config)
 	write_nodelist_yaml()
@@ -2078,16 +2042,6 @@ def acs_post_deploy():
 	deploy_on_nodes(config["worker_predeploy"], config["worker_filesdeploy"], config["worker_postdeploy"],
 	                config["worker_node"])
 
-def acs_attach_dns_name():
-	get_nodes_from_acs()
-	firstMasterNode = config["kubernetes_master_node"][0]
-	acs_tools.acs_attach_dns_to_node(firstMasterNode, config["master_dns_name"])
-	for i in range(len(config["kubernetes_master_node"])):
-		if (i != 0):
-			acs_tools.acs_attach_dns_to_node(config["kubernetes_master_node"][i])
-	for node in config["worker_node"]:
-		acs_tools.acs_attach_dns_to_node(node)
-
 # Install needed components including GPU drivers if needed
 def acs_prepare_machines():
 	nodes = get_nodes(config["clusterId"])
@@ -2098,11 +2052,9 @@ def acs_prepare_machines():
 		utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, "sudo systemctl restart kubelet.service")
 
 def acs_get_jobendpt(jobId):
-	get_nodes_from_acs("")
 	addr = k8sUtils.GetServiceAddress(jobId)
-	#print addr
-	#print config["acsnodes"]
-	ip = config["acsnodes"][addr[0]['hostName']]['publicip']
+	acs_tools.acs_set_desired_dns(addr[0]['hostName'])
+	ip = config["acs_node_info"]["desiredDns"]
 	port = addr[0]['hostPort']
 	ret = "http://%s:%s" % (ip, port)
 	print ret
@@ -3144,17 +3096,19 @@ def run_kubectl( commands ):
 	run_kube( "./deploy/bin/kubectl", commands)
 	
 def kubernetes_get_node_name(node):
-	if config["isacs"]:
-		return config["nodenames_from_ip"][node]
+	kube_node_name = ""
+	domain = get_domain()
+	if len(domain) < 2: 
+		kube_node_name = node
+	elif domain in node:
+		# print "Remove domain %d" % len(domain)
+		kube_node_name = node[:-(len(domain))]
 	else:
-		domain = get_domain()
-		if len(domain) < 2: 
-			return node
-		elif domain in node:
-			# print "Remove domain %d" % len(domain)
-			return node[:-(len(domain))]
-		else:
-			return node
+		kube_node_name = node
+	if config["isacs"]:
+		acs_tools.acs_set_node_from_dns(kube_node_name)
+		kube_node_name = config["acs_node_from_dns"][kube_node_name]
+	return kube_node_name
 
 def set_zookeeper_cluster():
 	nodes = get_node_lists_for_service("zookeeper")
@@ -3836,33 +3790,27 @@ def run_command( args, command, nargs, parser ):
 			elif nargs[0]=="getconfig":
 				acs_tools.acs_get_config()
 			elif nargs[0]=="getip":
-				ip = acs_tools.acs_get_machinesAndIPsFast()
+				ip = acs_tools.acs_get_ip_info_nodes(False)
 				print ip
 			elif nargs[0]=="getallip":
-				ip = acs_tools.acs_get_machinesAndIPs(False)
+				ip = acs_tools.acs_get_ip_info_nodes(True)
 				print ip
 			elif nargs[0]=="createip":
-				ip = acs_tools.acs_get_machinesAndIPs(True)
+				ip = acs_tools.acs_create_node_ips()
 				print ip
 			elif nargs[0]=="label":
-				ip = get_nodes_from_acs("")
+				get_nodes(config["clusterId"])
 				acs_label_webui()
 			elif nargs[0]=="openports":
 				acs_tools.acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
-			elif nargs[0]=="restartwebui":
-				run_script_blocks(args.verbose, scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
 				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
-			elif nargs[0]=="storage":
-				acs_tools.acs_create_storage()
 			elif nargs[0]=="storagemount":
 				acs_tools.acs_create_storage()
 				fileshare_install()
 				allmountpoints = mount_fileshares_by_service(True)
 				del_fileshare_links()
-				link_fileshares(allmountpoints, args.force)		
-			elif nargs[0]=="bldwebui":
-				run_script_blocks(args.verbose, scriptblocks["bldwebui"])
+				link_fileshares(allmountpoints, args.force)
 			elif nargs[0]=="prepare":
 				acs_prepare_machines()
 			elif nargs[0]=="addons":
@@ -3874,8 +3822,6 @@ def run_command( args, command, nargs, parser ):
 					run_script_blocks(args.verbose, ["kubernetes start freeflow"])
 			elif nargs[0]=="jobendpt":
 				acs_get_jobendpt(nargs[1])
-			elif nargs[0]=="dns":
-				acs_attach_dns_name()
 			elif nargs[0]=="postdeploy":
 				acs_post_deploy()
 			elif nargs[0]=="genconfig":
