@@ -415,12 +415,19 @@ def acs_get_ip_info_nodes(bNeedPrivateIP):
 def acs_update_machines(configLocal):
     if (not "machines" in configLocal) or (len(configLocal["machines"])==0):
         acs_create_node_ips()
+        acs_set_nodes_info()
+        #print "Worker: {0}".format(config["acs_agent_nodes"])
+        #print "Master: {0}".format(config["acs_master_nodes"])
+        configLocal["machines"] = {}
         if "acs_nodes" in config and len(config["acs_nodes"]) > 0:
-            for n in config["acs_nodes"]:
-                if n in config["acs_master_nodes"]:
+            for nKey in config["acs_node_info"]:
+                n = config["acs_node_info"][nKey]
+                #print "NKey={0} N={1} DNS={2}".format(nKey, n, n["desiredDns"])
+                if nKey in config["acs_master_nodes"]:
                     configLocal["machines"][n["desiredDns"]] = {"role": "infrastructure"}
                 else:
                     configLocal["machines"][n["desiredDns"]] = {"role": "worker"}
+            #exit()
             return True
         else:
             return False
