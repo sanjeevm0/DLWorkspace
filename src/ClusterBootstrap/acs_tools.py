@@ -452,8 +452,6 @@ def acs_update_azconfig(gen_cluster_config):
             acs_config = {}
         acs_update_machines(acs_config)
         utils.mergeDict(acs_config, configNew, False)
-        print "ConfigNew: {0}".format(acs_config)
-        exit()
         acs_write_azconfig(acs_config)
     return acs_config
 
