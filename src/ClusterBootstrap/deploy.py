@@ -1973,7 +1973,7 @@ def deploy_on_nodes(prescript, listOfFiles, postscript, nodes):
 
 # addons
 def kube_master0_wait():
-	acs_tools.get_nodes_from_acs()
+	get_ETCD_master_nodes(config["clusterId"])
 	node = config["kubernetes_master_node"][0]
 	exec_rmt_cmd(node, "until curl -q http://127.0.0.1:8080/version/ ; do sleep 5; echo 'waiting for master...'; done")
 	return node
@@ -2010,10 +2010,10 @@ def acs_untaint_nodes():
 # other config post deploy -- ACS cluster is complete
 # Run prescript, copyfiles, postscript
 def acs_post_deploy():
+	# set nodes
+	get_nodes(config["clusterId"])
 
-
-	# Label nodes
-	ip = acs_tools.get_nodes_from_acs("")
+	# Label nodes	
 	acs_label_webui()
 	kubernetes_label_nodes("active", [], args.yes)
 
@@ -2021,7 +2021,6 @@ def acs_post_deploy():
 	acs_untaint_nodes()
 
 	# Copy files, etc.
-	acs_tools.get_nodes_from_acs()
 	gen_configs()
 	utils.render_template_directory("./template/kubelet", "./deploy/kubelet", config)
 	write_nodelist_yaml()
@@ -2046,11 +2045,9 @@ def acs_prepare_machines():
 		utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, "sudo systemctl restart kubelet.service")
 
 def acs_get_jobendpt(jobId):
-	acs_tools.get_nodes_from_acs("")
 	addr = k8sUtils.GetServiceAddress(jobId)
-	#print addr
-	#print config["acsnodes"]
-	ip = config["acsnodes"][addr[0]['hostName']]['publicip']
+	acs_tools.acs_set_desired_dns(addr[0]['hostName'])
+	ip = config["acs_node_info"]["desiredDns"]
 	port = addr[0]['hostPort']
 	ret = "http://%s:%s" % (ip, port)
 	print ret
@@ -3102,6 +3099,7 @@ def kubernetes_get_node_name(node):
 	else:
 		kube_node_name = node
 	if conifg["isacs"]:
+		acs_tools.acs_set_node_from_dns(kube_node_name)
 		kube_node_name = config["acs_node_from_dns"][kube_node_name]
 	return kube_node_name
 
@@ -3785,33 +3783,27 @@ def run_command( args, command, nargs, parser ):
 			elif nargs[0]=="getconfig":
 				acs_tools.acs_get_config()
 			elif nargs[0]=="getip":
-				ip = acs_tools.acs_get_machinesAndIPsFast()
+				ip = acs_tools.acs_get_ip_info_nodes(False)
 				print ip
 			elif nargs[0]=="getallip":
-				ip = acs_tools.acs_get_machinesAndIPs(False)
+				ip = acs_tools.acs_get_ip_info_nodes(True)
 				print ip
 			elif nargs[0]=="createip":
-				ip = acs_tools.acs_get_machinesAndIPs(True)
+				ip = acs_tools.acs_create_node_ips()
 				print ip
 			elif nargs[0]=="label":
-				ip = acs_tools.get_nodes_from_acs("")
+				get_nodes(config["clusterId"])
 				acs_label_webui()
 			elif nargs[0]=="openports":
 				acs_tools.acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
-			elif nargs[0]=="restartwebui":
-				run_script_blocks(args.verbose, scriptblocks["restartwebui"])
 			elif nargs[0]=="getserviceaddr":
 				print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
-			elif nargs[0]=="storage":
-				acs_tools.acs_create_storage()
 			elif nargs[0]=="storagemount":
 				acs_tools.acs_create_storage()
 				fileshare_install()
 				allmountpoints = mount_fileshares_by_service(True)
 				del_fileshare_links()
-				link_fileshares(allmountpoints, args.force)		
-			elif nargs[0]=="bldwebui":
-				run_script_blocks(args.verbose, scriptblocks["bldwebui"])
+				link_fileshares(allmountpoints, args.force)
 			elif nargs[0]=="prepare":
 				acs_prepare_machines()
 			elif nargs[0]=="addons":
@@ -3823,8 +3815,6 @@ def run_command( args, command, nargs, parser ):
 					run_script_blocks(args.verbose, ["kubernetes start freeflow"])
 			elif nargs[0]=="jobendpt":
 				acs_get_jobendpt(nargs[1])
-			elif nargs[0]=="dns":
-				acs_tools.acs_attach_dns_name()
 			elif nargs[0]=="postdeploy":
 				acs_post_deploy()
 			elif nargs[0]=="genconfig":
