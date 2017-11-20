@@ -554,7 +554,7 @@ scriptblocks = {
 		"mount",
 	],	
 	"redeployazure": [
-		"-y deploy",
+		"-y --force deploy",
 		"-y updateworker",
 		"-y kubernetes labels",
 		"webui",
