@@ -14,7 +14,7 @@ import re
 
 import pycurl
 from StringIO import StringIO
-
+import traceback
 
 def curl_get(url):
 	curl = pycurl.Curl()
@@ -44,7 +44,7 @@ def read(data=None):
         vl = collectd.Values(type='gauge')
         vl.plugin = 'kubernetes'
         try:
-            rsset = json.loads(curl_get("https://127.0.0.1/apis/extensions/v1beta1/replicasets"))
+            rsset = json.loads(curl_get(os.environ['K8SAPI']+"/apis/extensions/v1beta1/replicasets"))
 
             if "items" in rsset:
                 for rs in rsset["items"]:
@@ -73,7 +73,7 @@ def read(data=None):
                                 res = 1
                             vl.dispatch(values=[float(res)])
 
-            rsset = json.loads(curl_get("https://127.0.0.1/apis/extensions/v1/ReplicationController"))
+            rsset = json.loads(curl_get(os.environ['K8SAPI']+"/apis/extensions/v1/ReplicationController"))
 
             if "items" in rsset:
                 for rs in rsset["items"]:
@@ -104,7 +104,7 @@ def read(data=None):
                             vl.dispatch(values=[float(res)])
 
 
-            dpset = json.loads(curl_get("https://127.0.0.1/apis/extensions/v1beta1/daemonsets"))
+            dpset = json.loads(curl_get(os.environ['K8SAPI']+"/apis/extensions/v1beta1/daemonsets"))
             if "items" in dpset:
                 for dp in dpset["items"]:
                     if "metadata" in dp and "name" in dp["metadata"] and "status" in dp:
@@ -133,11 +133,18 @@ def read(data=None):
                             vl.dispatch(values=[float(res)])
 
         except:
-            pass
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print "*** print_tb:"
+            traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+            print "*** print_exception:"
+            traceback.print_exception(exc_type, exc_value, exc_traceback,
+                                      limit=2, file=sys.stdout)
+            print "*** print_exc:"
+            traceback.print_exc()
 
         try:
             used_gpus = 0
-            pods = json.loads( curl_get("https://127.0.0.1/api/v1/pods"))
+            pods = json.loads( curl_get(os.environ['K8SAPI']+"/api/v1/pods"))
             if "items" in pods:
                 for item in pods["items"]:
                     if "spec" in item and "containers" in item["spec"]:
@@ -150,11 +157,18 @@ def read(data=None):
             vl.plugin_instance = "usedgpu"
             vl.dispatch(values=[float(used_gpus)])
         except:
-            pass
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print "*** print_tb:"
+            traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+            print "*** print_exception:"
+            traceback.print_exception(exc_type, exc_value, exc_traceback,
+                                      limit=2, file=sys.stdout)
+            print "*** print_exc:"
+            traceback.print_exc()
 
         try:
             total_gpus = 0
-            nodes = json.loads( curl_get("https://127.0.0.1/api/v1/nodes"))
+            nodes = json.loads( curl_get(os.environ['K8SAPI']+"/api/v1/nodes"))
             if "items" in nodes:
                 for item in nodes["items"]:
                     if "status" in item and "capacity" in item["status"] and "alpha.kubernetes.io/nvidia-gpu" in item["status"]["capacity"]:
@@ -165,7 +179,14 @@ def read(data=None):
             vl.dispatch(values=[float(total_gpus)])
 
         except:
-            pass
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print "*** print_tb:"
+            traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+            print "*** print_exception:"
+            traceback.print_exception(exc_type, exc_value, exc_traceback,
+                                      limit=2, file=sys.stdout)
+            print "*** print_exc:"
+            traceback.print_exc()
 
 collectd.register_config(configure)
 collectd.register_read(read)

@@ -1,0 +1,86 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: collectd-node-agent
+  namespace: kube-system
+  labels:
+    app: collectd-node-agent
+spec:
+  template:
+    metadata:
+      labels:
+        name: collectd-node-agent
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      dnsPolicy: Default
+      imagePullSecrets:
+        - name: acrregkey
+      containers:
+      - name: collectd
+        image: {{cnf["worker-dockerregistry"]}}{{cnf["dockerprefix"]}}collectd:{{cnf["dockertag"]}}
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+        env:
+          - name: CONFIG_TYPE
+            value: influxdb 
+          - name: EP_HOST
+            value: {{cnf["influxdb_node"]}}
+          - name: EP_PORT
+            value: "{{cnf["influxdb_tp_port"]}}"
+          - name: K8SAPI
+            value: "https://127.0.0.1:{{cnf["k8sAPIport"]}}"
+          - name: HOST_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName          
+        volumeMounts:
+        #- name: collectd-config
+        #  mountPath: /etc/collectd
+        - mountPath: /etc/kubernetes/ssl
+          name: certs
+        - mountPath: /root/.kube/config 
+          name: kubeconfig
+        - name: proc
+          mountPath: /mnt/proc
+          readOnly: true
+        - name: root
+          mountPath: /hostfs
+          readOnly: true
+        - name: etc
+          mountPath: /mnt/etc
+          readOnly: true
+        - name: run
+          mountPath: /var/run/docker.sock
+        - name: nvidia-driver
+          mountPath: /usr/local/nvidia
+      volumes:
+      #- name: collectd-config
+      #  configMap:
+      #    name: collectd-config
+      #    items:
+      #    - key: node-collectd.conf
+      #      path: collectd.conf
+      - name: certs
+        hostPath:
+          path: /etc/kubernetes/ssl
+      - name: kubeconfig
+        hostPath:
+          path: /etc/kubernetes/restapi-kubeconfig.yaml
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: root
+        hostPath:
+          path: /
+      - name: etc
+        hostPath:
+          path: /etc
+      - name: run
+        hostPath:
+          path: /var/run/docker.sock
+      - name: nvidia-driver
+        hostPath:
+          path: {{cnf["nvidia-driver-path"]}}
