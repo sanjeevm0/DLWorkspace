@@ -337,12 +337,13 @@ def update_config():
 		exec("config[\"%s_predeploy\"] = os.path.join(\"./deploy/%s\", config[\"pre%sdeploymentscript\"])" % (cf, loc, cf))
 		exec("config[\"%s_filesdeploy\"] = os.path.join(\"./deploy/%s\", config[\"%sdeploymentlist\"])" % (cf, loc, cf))
 		exec("config[\"%s_postdeploy\"] = os.path.join(\"./deploy/%s\", config[\"post%sdeploymentscript\"])" % (cf, loc, cf))
-	config["webportal_node"] = None if len(get_node_lists_for_service("webportal"))==0 else get_node_lists_for_service("webportal")[0]
+	if "clusterId" in config:
+		config["webportal_node"] = None if len(get_node_lists_for_service("webportal"))==0 else get_node_lists_for_service("webportal")[0]
 
-	if ("influxdb_node" not in config):
-		config["influxdb_node"] = config["webportal_node"]
-	if ("elasticsearch_node" not in config):
-		config["elasticsearch_node"] = config["webportal_node"]
+		if ("influxdb_node" not in config):
+			config["influxdb_node"] = config["webportal_node"]
+		if ("elasticsearch_node" not in config):
+			config["elasticsearch_node"] = config["webportal_node"]
 
 def add_ssh_key():
 	keys = fetch_config(["sshKeys"])

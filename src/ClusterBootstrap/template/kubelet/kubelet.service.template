@@ -22,15 +22,14 @@ ExecStart=/opt/bin/kubelet \
   --feature-gates="Accelerators=true" \
   --allow-privileged=true \
   --pod-manifest-path=/etc/kubernetes/manifests \
-  --network-plugin=cni \
   --cluster_dns={{cnf["dns-server-ip"]}} \
   --docker-disable-shared-pid \
   --cluster_domain=cluster.local \
-  --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \
   --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
+  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
   {{'--log-dir='~cnf["kubeletlogdir"]~'/kubelet --logtostderr=false' if "kubeletlogdir" in cnf}} \
   {{'--v='~cnf["kubeletloglevel"] if "kubeletloglevel" in cnf}} \
-  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem
+  --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml
 
 #ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
 Restart=always
