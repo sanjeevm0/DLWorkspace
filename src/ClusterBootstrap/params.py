@@ -369,7 +369,10 @@ default_config_parameters = {
 
     "k8s-bld" : "k8s-temp-bld",
     "k8s-gitrepo" : "sanjeevm0/kubernetes",
-    "k8s-gitbranch" : "release-1.7",
+    "k8s-gitbranch" : "vb1.7.5",
+    "k8scri-gitrepo" : "sanjeevm0/KubernetesGPU",
+    "k8scri-gitbranch" : "master",
+    "kube_custom_cri" : False,
 
     "Authentications": {
         "Live-login-windows": {
