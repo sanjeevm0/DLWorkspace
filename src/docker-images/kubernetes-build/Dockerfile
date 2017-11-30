@@ -19,8 +19,9 @@ RUN cp /go/src/k8s.io/kubernetes/_output/bin/* /
 # Custom CRI
 ARG NOCACHE_CRI=1
 COPY gittoken /root/gittoken
+RUN chmod 400 /root/gittoken
 RUN mkdir -p /go/src/github.com
-RUN ssh-agent sh -c 'ssh-add /root/gittoken; git clone git@github.com:{{cnf["k8scri-gitrepo"]}} /go/src/github.com/KubeGPU'
+RUN ssh-agent sh -c 'ssh-add /root/gittoken; git clone --recursive git@github.com:{{cnf["k8scri-gitrepo"]}} /go/src/github.com/KubeGPU'
 WORKDIR /go/src/github.com/KubeGPU
 RUN git checkout {{cnf["k8scri-gitbranch"]}}
 # Build the CRI and copy file to root
