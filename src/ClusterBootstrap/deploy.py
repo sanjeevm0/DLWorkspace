@@ -2940,6 +2940,7 @@ def run_command( args, command, nargs, parser ):
 	
 	if verbose: 
 		print "deploy " + command + " " + (" ".join(nargs))
+		print "PlatformScripts = {0}".format(config["platform-scripts"])
 
 	if command == "restore":
 		# Second part of restore, after config has been read.
