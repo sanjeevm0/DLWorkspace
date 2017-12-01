@@ -1,24 +1,23 @@
 [Unit]
-Description=CRIService
+Description=kubecri
 [Service]
 TimeoutSec=60min
 # wait 60 seconds and then start - let system fully boot
 ExecStartPre=/bin/bash -c 'sleep 60'
 # don't wait for nvidia-driver and nvidia-docker when deploy on philly
 ExecStartPre=/bin/bash -c 'if  lspci | grep -qE "[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F].[0-9] (3D|VGA compatible) controller: NVIDIA Corporation.*" ; then  if [ -e /etc/systemd/system/nvidia-docker.service ] ; then until wget -q -O - http://localhost:3476/gpu/info ; do /bin/echo "waiting for nvidia-docker..." ; /bin/sleep 2 ; done fi fi'
-ExecStart=/opt/bin/kubelet \
+ExecStart=/opt/bin/kubegpucri \
   --require-kubeconfig=true \
   --container-runtime=docker \
-  --register-node=true \
   --feature-gates="Accelerators=true" \
   --allow-privileged=true \
-  --pod-manifest-path=/etc/kubernetes/manifests \
   --cluster_dns=10.3.0.53 \
   --docker-disable-shared-pid \
   --cluster_domain=cluster.local \
   --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
   --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
-  {{'--log-dir='~cnf["kubeletlogdir"]~'/kubelet --logtostderr=false' if "kubeletlogdir" in cnf}} \
+  --enable-server=false \
+  {{'--log-dir='~cnf["kubeletlogdir"]~'/cri --logtostderr=false' if "kubeletlogdir" in cnf}} \
   {{'--v='~cnf["kubeletloglevel"] if "kubeletloglevel" in cnf}} \
   --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml
 

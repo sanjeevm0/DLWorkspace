@@ -1,5 +1,6 @@
 ./deploy/kubelet/options.env,/etc/flannel/options.env
 ./deploy/kubelet/kubelet.service,/etc/systemd/system/kubelet.service
+{{'./deploy/kubelet/kubecri.service,/etc/systemd/system/kubecri.service' if cnf["kube_custom_cri"]}}
 ./deploy/kubelet/worker-kubeconfig.yaml,/etc/kubernetes/worker-kubeconfig.yaml
 ./deploy/kubelet/kubelet.sh,/opt/kubelet.sh
 ./deploy/bin/kubelet,/opt/bin/kubelet
