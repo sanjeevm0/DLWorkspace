@@ -19,7 +19,7 @@ from osUtils import mkdirsAsUser
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, Template
-from config import config, GetStoragePath
+from config import config, GetStoragePath, GetWorkPath
 from DataHandler import DataHandler
 from node_manager import create_log
 from node_manager import get_cluster_status
@@ -64,6 +64,13 @@ def SubmitJob(job):
 		SubmitRegularJob(job)
 	elif jobParams["jobtrainingtype"] == "PSDistJob":
 		SubmitPSDistJob(job)
+
+def CheckMountPoints(mplist, mp):
+	ret = True
+	for item in mplist:
+		if item["name"] == mp["name"] or item["containerPath"] == mp["containerPath"] or item["hostPath"] == mp["hostPath"]:
+			ret = False
+	return ret
 
 def SubmitRegularJob(job):
 	ret = {}
@@ -136,13 +143,34 @@ def SubmitRegularJob(job):
 		jobParams["userNameLabel"] = getAlias(jobParams["userName"])
 		jobParams["rest-api"] = config["rest-api"]
 
-		if "mountPoints" not in jobParams:
-			jobParams["mountPoints"] = []
+		if "mountpoints" not in jobParams:
+			jobParams["mountpoints"] = []
+		for onemount in jobParams["mountpoints"]:
+			onemount["name"] = onemount["containerPath"].replace("/","")
 
-		jobParams["mountPoints"].append({"name":"nvidia-driver","containerPath":"/usr/local/nvidia","hostPath":nvidiaDriverPath})
-		jobParams["mountPoints"].append({"name":"job","containerPath":"/job","hostPath":jobParams["hostjobPath"]})
-		jobParams["mountPoints"].append({"name":"work","containerPath":"/work","hostPath":jobParams["hostworkPath"]})
-		jobParams["mountPoints"].append({"name":"data","containerPath":"/data","hostPath":jobParams["hostdataPath"]})
+		mp = {"name":"nvidia-driver","containerPath":"/usr/local/nvidia","hostPath":nvidiaDriverPath, "enabled":True}
+		if CheckMountPoints(jobParams["mountpoints"],mp):
+			jobParams["mountpoints"].append(mp)
+
+		mp = {"name":"job","containerPath":"/job","hostPath":jobParams["hostjobPath"], "enabled":True}
+		if CheckMountPoints(jobParams["mountpoints"],mp):
+			jobParams["mountpoints"].append(mp)
+
+		mp = {"name":"work","containerPath":"/work","hostPath":jobParams["hostworkPath"], "enabled":True}
+		if CheckMountPoints(jobParams["mountpoints"],mp):
+			jobParams["mountpoints"].append(mp)
+
+		mp = {"name":"data","containerPath":"/data","hostPath":jobParams["hostdataPath"], "enabled":True}
+		if CheckMountPoints(jobParams["mountpoints"],mp):
+			jobParams["mountpoints"].append(mp)						
+
+		userAlias = getAlias(jobParams["userName"])
+
+		mp = {"name":"sshkey","containerPath":"/home/%s/.ssh" % userAlias,"hostPath":os.path.join(config["storage-mount-path"], GetWorkPath(userAlias)+"/.ssh"), "readOnly":True, "enabled":True}
+		if CheckMountPoints(jobParams["mountpoints"],mp):
+			jobParams["mountpoints"].append(mp)			
+
+
 		jobParams["pod_ip_range"] = config["pod_ip_range"]
 		if "usefreeflow" in config:
 			jobParams["usefreeflow"] = config["usefreeflow"]
@@ -326,13 +354,13 @@ chmod +x /opt/run_dist_job.sh
 					distJobParam["hostdataPath"] = os.path.join(config["storage-mount-path"], dataPath)
 					distJobParam["nvidiaDriverPath"] = nvidiaDriverPath
 
-					if "mountPoints" not in distJobParam:
-						distJobParam["mountPoints"] = []
+					if "mountpoints" not in distJobParam:
+						distJobParam["mountpoints"] = []
 
-					distJobParam["mountPoints"].append({"name":"nvidia-driver","containerPath":"/usr/local/nvidia","hostPath":nvidiaDriverPath})
-					distJobParam["mountPoints"].append({"name":"job","containerPath":"/job","hostPath":distJobParam["hostjobPath"]})
-					distJobParam["mountPoints"].append({"name":"work","containerPath":"/work","hostPath":distJobParam["hostworkPath"]})
-					distJobParam["mountPoints"].append({"name":"data","containerPath":"/data","hostPath":distJobParam["hostdataPath"]})
+					distJobParam["mountpoints"].append({"name":"nvidia-driver","containerPath":"/usr/local/nvidia","hostPath":nvidiaDriverPath})
+					distJobParam["mountpoints"].append({"name":"job","containerPath":"/job","hostPath":distJobParam["hostjobPath"]})
+					distJobParam["mountpoints"].append({"name":"work","containerPath":"/work","hostPath":distJobParam["hostworkPath"]})
+					distJobParam["mountpoints"].append({"name":"data","containerPath":"/data","hostPath":distJobParam["hostdataPath"]})
 					distJobParam["pod_ip_range"] = config["pod_ip_range"]
 					if "usefreeflow" in config and config["usefreeflow"] == "True":
 						distJobParam["usefreeflow"] = config["usefreeflow"]
