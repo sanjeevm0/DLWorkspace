@@ -13,6 +13,7 @@ ExecStart=/opt/bin/kubegpucri \
   --container-runtime=docker \
   --feature-gates="Accelerators=true" \
   --allow-privileged=true \
+  --network-plugin=cni \
   --cluster_dns=10.3.0.53 \
   --docker-disable-shared-pid \
   --cluster_domain=cluster.local \
