@@ -10,6 +10,7 @@ import os
 import subprocess
 import DockerUtils
 import git_utils
+import uuid
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(__file__))
@@ -32,11 +33,12 @@ if __name__ == '__main__':
     
     # private repo, don't know how to get hash, use other sha for now
     #shacri = git_utils.github_hash("{{cnf["k8scri-gitrepo"]}}", "{{cnf["k8scri-gitbranch"]}}")
-    #print "SHA of HEAD branch for CRI " + "{{cnf["k8s-gitbranch"]}}" + "is " + shacri
+    shacri = str(uuid.uuid4())
+    print "SHA of HEAD branch for CRI " + "{{cnf["k8s-gitbranch"]}}" + "is " + shacri
 
     #os.chdir("./deploy")
     #dockerBld = "docker build --build-arg NOCACHE=$(date +%s) -t " + "{{cnf["k8s-bld"]}}"" + " ."
-    dockerBld = "docker build --build-arg NOCACHE=" + sha + " --build-arg NOCACHE_CRI=" + sha + " -t " + "{{cnf["k8s-bld"]}}" + " ."
+    dockerBld = "docker build --build-arg NOCACHE=" + sha + " --build-arg NOCACHE_CRI=" + shacri + " -t " + "{{cnf["k8s-bld"]}}" + " ."
     print dockerBld
     os.system(dockerBld)
 

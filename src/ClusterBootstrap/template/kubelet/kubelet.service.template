@@ -4,7 +4,7 @@ Description=Kubelet
 #After=network.target nvidia-driver.service 
 #Requires=nvidia-driver.service 
 {% if cnf["kube_custom_cri"] %}
-After=cri.service
+After=kubecri.service
 {% endif %}
 
 [Service]
