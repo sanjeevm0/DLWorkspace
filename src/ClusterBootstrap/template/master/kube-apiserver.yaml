@@ -27,7 +27,7 @@ spec:
     - --client-ca-file=/etc/kubernetes/ssl/ca.pem
     - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --runtime-config=extensions/v1beta1/networkpolicies=true
-    - --anonymous-auth=true
+    - --anonymous-auth=false
     - --basic-auth-file=/etc/kubernetes/basicauth    
 {% if "kubelogdir" in cnf %}
     - --log-dir={{cnf["kubelogdir"]}}/kubeapiserver
