@@ -21,7 +21,6 @@ ExecStart=/opt/bin/kubelet \
   --allow-privileged=true \
   --feature-gates="Accelerators=true" \
   --pod-manifest-path=/etc/kubernetes/manifests \
-  --network-plugin=cni \
   --cluster_dns={{cnf["dns-server-ip"]}} \
   --docker-disable-shared-pid \
   --cluster_domain=cluster.local
