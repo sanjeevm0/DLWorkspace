@@ -33,7 +33,7 @@ from GlusterFSUtils import GlusterFSJson
 sys.path.append("../utils")
 
 import utils
-from DockerUtils import push_one_docker, build_dockers, push_dockers, run_docker, find_dockers, build_docker_fullname, copy_from_docker_image
+from DockerUtils import push_one_docker, build_dockers, push_dockers, run_docker, find_dockers, build_docker_fullname, copy_from_docker_image, configuration
 import k8sUtils
 from config import config as k8sconfig
 
@@ -901,6 +901,7 @@ def deploy_master(kubernetes_master):
 
         config["master_ip"] = utils.getIP(kubernetes_master)
         utils.render_template("./template/master/kube-apiserver.yaml","./deploy/master/kube-apiserver.yaml",config)
+        utils.render_template("./template/master/dns-kubeconfig.yaml","./deploy/master/dns-kubeconfig.yaml",config)
         utils.render_template("./template/master/kubelet.service","./deploy/master/kubelet.service",config)
         utils.render_template("./template/master/" + config["premasterdeploymentscript"],"./deploy/master/"+config["premasterdeploymentscript"],config)
         utils.render_template("./template/master/" + config["postmasterdeploymentscript"],"./deploy/master/"+config["postmasterdeploymentscript"],config)
@@ -1310,10 +1311,8 @@ def deploy_webUI_on_node(ipAddress):
     if not os.path.exists("./deploy/WebUI"):
         os.system("mkdir -p ./deploy/WebUI")
 
-    utils.render_template("./template/WebUI/userconfig.json","./deploy/WebUI/userconfig.json", config)
-    os.system("cp --verbose ./deploy/WebUI/userconfig.json ../WebUI/dotnet/WebPortal/") # used for debugging, when deploy, it will be overwritten by mount from host, contains secret
-    utils.render_template("./template/WebUI/configAuth.json","./deploy/WebUI/configAuth.json", config)
-    os.system("cp --verbose ./deploy/WebUI/configAuth.json ../WebUI/dotnet/WebPortal/")
+    utils.render_template_directory("./template/WebUI","./deploy/WebUI", config)
+    os.system("cp --verbose ./deploy/WebUI/*.json ../WebUI/dotnet/WebPortal/") # used for debugging, when deploy, it will be overwritten by mount from host, contains secret
 
     # write into host, mounted into container
     utils.sudo_scp(config["ssh_cert"],"./deploy/WebUI/userconfig.json","/etc/WebUI/userconfig.json", sshUser, webUIIP )
@@ -1757,11 +1756,24 @@ def fileshare_install():
         if len(remotecmd)>0:
             utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, remotecmd)
 
-def config_nginx():
+def config_fqdn():
     all_nodes = get_nodes(config["clusterId"])
     for node in all_nodes:
         remotecmd = "echo %s | sudo tee /etc/hostname-fqdn; sudo chmod +r /etc/hostname-fqdn" % node
         utils.SSH_exec_cmd(config["ssh_cert"], config["admin_username"], node, remotecmd)    
+
+def config_nginx():
+    all_nodes = get_nodes(config["clusterId"])
+    template_dir = "services/nginx/"
+    target_dir = "deploy/services/nginx/"
+    utils.render_template_directory(template_dir, target_dir,config)
+    for node in all_nodes:   
+        utils.sudo_scp(config["ssh_cert"],"./deploy/services/nginx/","/etc/nginx/conf.other", config["admin_username"], node )
+    # See https://github.com/kubernetes/examples/blob/master/staging/https-nginx/README.md
+    # Please use 
+    # kubectl create configmap nginxconfigmap --from-file=services/nginx/default.conf
+    # run_kubectl( ["delete", "configmap", "nginxconfigmap"] )
+    # run_kubectl( ["create", "configmap", "nginxconfigmap", "--from-file=%s/default.conf" % target_dir ] )
 
 def mount_fileshares_by_service(perform_mount=True):
     all_nodes = get_nodes(config["clusterId"])
@@ -2844,7 +2856,7 @@ def build_docker_images(nargs):
     render_docker_images()
     if verbose:
         print "Build docker ..."
-    build_dockers("./deploy/docker-images/", config["dockerprefix"], config["dockertag"], nargs, verbose, nocache = nocache )
+    build_dockers("./deploy/docker-images/", config["dockerprefix"], config["dockertag"], nargs, config, verbose, nocache = nocache )
 
 def push_docker_images(nargs):
     render_docker_images()
@@ -2862,11 +2874,10 @@ def check_buildable_images(nargs):
 
 def run_docker_image( imagename, native = False, sudo = False ):
     dockerConfig = fetch_config( ["docker-run", imagename ])
-    full_dockerimage_name = build_docker_fullname( config, imagename )
+    full_dockerimage_name, local_dockerimage_name = build_docker_fullname( config, imagename )
     # print full_dockerimage_name
     matches = find_dockers( full_dockerimage_name )
     if len( matches ) == 0:
-        local_dockerimage_name = config["dockerprefix"] + dockername + ":" + config["dockertag"]
         matches = find_dockers( local_dockerimage_name )
         if len( matches ) == 0:
             matches = find_dockers( imagename )
@@ -2903,6 +2914,8 @@ def run_command( args, command, nargs, parser ):
 
     if command == "restore":
         utils.restore_keys(nargs)
+        # Stop parsing additional command
+        exit()
 
     # Cluster Config
     config_cluster = os.path.join(dirpath,"cluster.yaml")
@@ -3349,6 +3362,7 @@ def run_command( args, command, nargs, parser ):
         run_kubectl(nargs)
 
     elif command == "kubernetes":
+        configuration( config, verbose )
         if len(nargs) >= 1: 
             if len(nargs)>=2:
                 servicenames = nargs[1:]
@@ -3359,6 +3373,7 @@ def run_command( args, command, nargs, parser ):
                     servicenames.append(service)
                 # print servicenames
             generate_hdfs_containermounts()
+            configuration( config, verbose )
             if nargs[0] == "start":
                 if args.force and "hdfsformat" in servicenames:
                     print ("This operation will WIPEOUT HDFS namenode, and erase all data on the HDFS cluster,  "  )
@@ -3428,11 +3443,15 @@ def run_command( args, command, nargs, parser ):
 
     elif command == "nginx":
         if len(nargs)>=1:
+            configuration( config, verbose )
             if nargs[0] == "config":
                 config_nginx()
+            if nargs[0] == "fqdn":
+                config_fqdn()
 
     elif command == "docker":
         if len(nargs)>=1:
+            configuration( config, verbose )
             if nargs[0] == "build":
                 check_buildable_images(nargs[1:])
                 build_docker_images(nargs[1:])
@@ -3457,6 +3476,7 @@ def run_command( args, command, nargs, parser ):
         if len(nargs) != 2:
             parser.print_help()
             exit()
+        configuration( config, verbose )
         template_file = nargs[0]
         target_file = nargs[1]
         utils.render_template(template_file, target_file,config)
@@ -3562,7 +3582,8 @@ Command:
             push: build and push one or more docker images to register
             run [--sudo]: run a docker image (--sudo: in super user mode)
   nginx     [args] manage nginx reverse proxy
-            config: config nginx node, mainly install FQDN on each node
+            config: config nginx node, mainly install file that specify how to direct traffic
+            fqdn: config nginx node, install FQDN for each node
   execonall [cmd ... ] Execute the command on all nodes and print the output. 
   doonall [cmd ... ] Execute the command on all nodes. 
   runscriptonall [script] Execute the shell/python script on all nodes. 

@@ -45,7 +45,7 @@ default_config_parameters = {
     "nvidiadriverdocker" : "mlcloudreg.westus.cloudapp.azure.com:5000/nvidia_driver:375.20",
     "nvidiadriverversion" : "375.20",
     # Default port for WebUI, Restful API, 
-    "webuiport" : "80",
+    "webuiport" : "3080", # Port webUI will run upon, nginx will forward to this port. 
     "restfulapiport" : "5000",
     "restfulapi" : "restfulapi",
     "ssh_cert" : "./deploy/sshkey/id_rsa",
@@ -90,6 +90,8 @@ default_config_parameters = {
         "collectd.graphite.conf.tpl": True,
         "collectd.influxdb.conf.tpl": True,
         "collectd.riemann.conf.tpl": True,
+        "nginx": True,
+        "RecogServer": True,
         # This template will be rendered inside container, but not at build stage
         # "hdfs-site.xml.template": True,         
         },
@@ -195,8 +197,7 @@ default_config_parameters = {
         "elasticsearch": "etcd_node_1", 
         "kibana": "etcd_node_1", 
         "mysql": "etcd_node_1", 
-
-
+        "nginx": "all", 
       },
 
     "kubemarks" : [ "rack", "sku" ],
@@ -500,6 +501,35 @@ default_config_parameters = {
           "port" : 8088,
         },
     },
+
+    # System dockers. 
+    # These dockers are agnostic of cluster, and can be built once and reused upon multiple clusters. 
+    # We will gradually migrate mroe and more docker in DLWorkspace to system dockers
+    "dockers": {
+        # Hub is docker.io/
+        "hub": "dlws/",
+        "tag": "1.5",
+        "system": { 
+            "nginx": { }, 
+            "zookeeper": { }, 
+            "influxdb": { }, 
+            "collectd": { }, 
+            "grafana": { }, 
+            "tutorial-tensorflow": { }, 
+        },
+        "external" : {
+            # These dockers are to be built by additional add ons. 
+            "hyperkube": {  }, 
+            "freeflow": { },  
+        }, 
+        "infrastructure": {
+            "pxe-ubuntu": { }, 
+            "pxe-coreos": { }, 
+        },
+        # This will be automatically populated by config_dockers, so you can refer to any container as:
+        # config["docker"]["container"]["name"]
+        "container": { }, 
+    }
 }
 
 # These are super scripts
@@ -512,16 +542,14 @@ scriptblocks = {
         "webui",
         "docker push restfulapi",
         "docker push webui",
-        "docker push influxdb",
-        "docker push collectd",
-        "docker push grafana",
+        "nginx fqdn", 
+        "nginx config", 
         "mount", 
         "kubernetes start jobmanager",
         "kubernetes start restfulapi",
         "kubernetes start webportal",
-        "kubernetes start monitor",
         "kubernetes start cloudmonitor",
-        "kubernetes start logging",
+        "kubernetes start nginx",
     ],
     "ubuntu_uncordon": [
         "runscriptonall ./scripts/prepare_ubuntu.sh",
@@ -543,6 +571,18 @@ scriptblocks = {
         "kubernetes start jobmanager",
         "kubernetes start restfulapi",
         "kubernetes start webportal",
+    ],
+    "kubernetes_uncordon": [
+        "runscriptonall ./scripts/prepare_ubuntu.sh",
+        "-y deploy",
+        "-y kubernetes labels",
+        "kubernetes uncordon",
+        "sleep 60",
+        "-y updateworker",
+        "nginx config", 
+        "kubernetes start freeflow",
+        "kubernetes start cloudmonitor",
+        "kubernetes start nginx",
     ],
     "add_worker": [
         "sshkey install",

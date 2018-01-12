@@ -4,47 +4,62 @@ metadata:
   name: nginx
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      nginx: active
   template:
     metadata:
       name: nginx
       labels:
         app: nginx
-        webportal-node: pod
+        nginx: active
     spec:
       {% if cnf["dnsPolicy"] %}    
       dnsPolicy: {{cnf["dnsPolicy"]}}
       {% endif %}
-      nodeSelector:
-        webportal: active
       {% if true %}  
       hostNetwork: true
       {% endif %}
       containers:
       - name: nginx
-        image: {{cnf["worker-dockerregistry"]}}{{cnf["dockerprefix"]}}nginx:{{cnf["dockertag"]}}
+        image: {{cnf["dockers"]["container"]["nginx"]["fullname"]}}
         imagePullPolicy: Always   
         command: ["/home/auto-reload-nginx.sh"]
         livenessProbe:
           httpGet:
             path: /html/index.html
             port: 80
-          initialDelaySeconds: 30
+          initialDelaySeconds: 3000
           timeoutSeconds: 1
         volumeMounts:
         - mountPath: /etc/nginx/ssl
           name: secret-volume
-        - mountPath: /etc/nginx.cloud/conf.d
+        - mountPath: /var/log/nginx
+          name: nginx-log         
+        - mountPath: /etc/nginx/conf.other
           name: configmap-volume
         - mountPath: /etc/hostname-fqdn
-          name: hostname-fqdn          
+          name: hostname-fqdn
+        - mountPath: /etc/letsencrypt
+          name: etc-letsencrpyt  
+        - mountPath: /var/log/letsencrypt
+          name: letsencrypt-log         
       volumes:
       - name: secret-volume
         hostPath:
           path: /etc/nginx/ssl
       - name: configmap-volume
-        configMap:
-          name: nginxconfigmap
+        hostPath:
+          path: /etc/nginx/conf.other
       - name: hostname-fqdn
         hostPath:
           path: /etc/hostname-fqdn
-     
+      - name: nginx-log
+        hostPath:
+          path: /var/log/nginx
+      - name: etc-letsencrpyt
+        hostPath:
+          path: /etc/letsencrypt
+      - name: letsencrypt-log
+        hostPath:
+          path: /var/log/letsencrypt      
