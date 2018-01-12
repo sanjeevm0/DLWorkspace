@@ -2902,6 +2902,8 @@ def run_command( args, command, nargs, parser ):
     global ipAddrMetaname
     global nocache
 
+    global sshtempfile
+
     nocache = args.nocache
 
     discoverserver = args.discoverserver
@@ -2939,6 +2941,19 @@ def run_command( args, command, nargs, parser ):
         f.close()
         if "clusterId" in tmp:
             config["clusterId"] = tmp["clusterId"]
+
+    if "copy_sshtemp" in config and config["copy_sshtemp"]:
+        sshfile = os.path.join(dirpath,config["ssh_cert"])
+        if os.path.exists(sshfile):
+            _, sshtempfile = tempfile.mkstemp(dir='/tmp')
+            if verbose:
+                print "SSH file is now {0}".format(sshtempfile)
+            #sshtemp = tempfile.NamedTemporaryFile('w+b', delete=True) # global var to prevent garbage collection
+            with open (sshtempfile, 'wb') as output:
+                with open (sshfile, 'rb') as input:
+                    output.write(input.read())
+            #config["ssh_cert"] = sshtemp.name
+            config["ssh_cert"] = sshtempfile
 
     add_acs_config(command)
     if verbose and config["isacs"]:
@@ -3500,6 +3515,7 @@ def run_script_blocks( verbose, script_collection ):
 
 if __name__ == '__main__':
     # the program always run at the current directory. 
+    sshtempfile = ""
     dirpath = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
     # print "Directory: " + dirpath
     os.chdir(dirpath)
@@ -3659,3 +3675,5 @@ Command:
             print "Error: Unknown scriptblocks " + nargs[0]
     else:
         run_command( args, command, nargs, parser)
+
+    os.remove(sshtempfile)
