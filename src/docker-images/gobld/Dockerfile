@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         apt-utils \
         ssh \
+        mercurial \
         wget
 
 # Developer tools / certificates
@@ -15,7 +16,7 @@ RUN apt-get install -y --no-install-recommends software-properties-common
 RUN update-ca-certificates
 
 # Install Go
-ENV GOVERSION=1.9
+ENV GOVERSION=1.9.2
 ENV GOOS=linux
 ENV GOARCH=amd64
 RUN wget https://storage.googleapis.com/golang/go$GOVERSION.$GOOS-$GOARCH.tar.gz
