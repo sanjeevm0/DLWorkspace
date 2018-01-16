@@ -50,3 +50,6 @@ RUN go get github.com/golang/glog
 RUN mkdir /root/.ssh
 RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 
+# change to allow adding of other go packages directly into desired directory
+ENV GOPATH=/home:/go
+
