@@ -2902,7 +2902,7 @@ def run_command( args, command, nargs, parser ):
     global ipAddrMetaname
     global nocache
 
-    global sshtempfile
+    sshtempfile = ""
 
     nocache = args.nocache
 
@@ -2945,10 +2945,10 @@ def run_command( args, command, nargs, parser ):
     if "copy_sshtemp" in config and config["copy_sshtemp"]:
         sshfile = os.path.join(dirpath,config["ssh_cert"])
         if os.path.exists(sshfile):
+            #sshtemp = tempfile.NamedTemporaryFile('w+b', delete=True) # global var to prevent garbage collection
             _, sshtempfile = tempfile.mkstemp(dir='/tmp')
             if verbose:
                 print "SSH file is now {0}".format(sshtempfile)
-            #sshtemp = tempfile.NamedTemporaryFile('w+b', delete=True) # global var to prevent garbage collection
             with open (sshtempfile, 'wb') as output:
                 with open (sshfile, 'rb') as input:
                     output.write(input.read())
@@ -3431,6 +3431,7 @@ def run_command( args, command, nargs, parser ):
     elif command == "download":
         if len(nargs)>=1:
             if nargs[0] == "kubectl" or nargs[0] == "kubelet":
+                os.system( "rm ./deploy/bin/*")
                 get_kubectl_binary()
             else:
                 parser.print_help()
@@ -3500,6 +3501,9 @@ def run_command( args, command, nargs, parser ):
     else:
         parser.print_help()
         print "Error: Unknown command " + command
+
+    if os.path.exists(sshtempfile):
+        os.remove(sshtempfile)
 
 def run_script_blocks( verbose, script_collection ):
     if verbose:
@@ -3676,4 +3680,3 @@ Command:
     else:
         run_command( args, command, nargs, parser)
 
-    os.remove(sshtempfile)
