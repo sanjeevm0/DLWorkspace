@@ -212,11 +212,11 @@ def SubmitRegularJob(job):
                 container = {}
                 container["requests"] = {"alpha.gpu/numgpu" : jobParams["resourcegpu"]}
                 podInfo = {}
-                podinfo["podname"] = jobParams["podName"]
-                podinfo["runningcontainer"] = {jobParms["podName"] : container}
+                podInfo["podname"] = jobParams["podName"]
+                podInfo["runningcontainer"] = {jobParams["podName"] : container}
 
                 jobParams["annotations"] = {
-                    "pod.alpha/DeviceInformation" : json.dumps(podinfo)
+                    "pod.alpha/DeviceInformation" : "'" + json.dumps(podInfo) + "'"
                 }
                 jobParams["resourcegpu"] = 0
 
@@ -820,14 +820,5 @@ def Run():
         time.sleep(1)
 
 if __name__ == '__main__':
-    config = {}
-    if os.path.exists("./scheduler.yaml"):
-        f = open("./scheduler.yaml")
-        try:
-            config = yaml.load(f)
-        except:
-            config = {}
-        f.close()
-
     Run()
     #print k8sUtils.get_pod_events("d493d41c-45ea-4e85-8ca4-01c3533cd727")

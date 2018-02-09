@@ -11,7 +11,7 @@ metadata:
   {% if "annotations" in job %}
   annotations:
     {% for annotationKey,annotationVal in job["annotations"].items() %}
-    - {{ annotationKey }}: {{ annotationVal }}
+      {{ annotationKey }}: {{ annotationVal }}
     {% endfor %}
   {% endif %}
 spec:

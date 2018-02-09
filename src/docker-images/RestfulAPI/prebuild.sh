@@ -11,4 +11,3 @@ cp -r ../../../../utils utils
 cp -r ../../../../RestAPI RestAPI
 cp -r ../../../../ClusterManager ClusterManager
 cp -r ../../../../ClusterBootstrap/deploy/bin/kubectl kubectl
-cp scheduler.yaml ClusterManager
