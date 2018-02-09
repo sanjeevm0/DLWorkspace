@@ -1,0 +1,1 @@
+kube_custom_scheduler: {{cnf["kube_custom_scheduler"]}}

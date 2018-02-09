@@ -208,7 +208,17 @@ def SubmitRegularJob(job):
             jobParams["podName"] = pod["podName"]
             jobParams["env"] = jobParams["commonenv"] + pod["envs"]
 
+            if "kube_custom_scheduler" in config and config["kube_custom_scheduler"]:
+                container = {}
+                container["requests"] = {"alpha.gpu/numgpu" : jobParams["resourcegpu"]}
+                podInfo = {}
+                podinfo["podname"] = jobParams["podName"]
+                podinfo["runningcontainer"] = {jobParms["podName"] : container}
 
+                jobParams["annotations"] = {
+                    "pod.alpha/DeviceInformation" : json.dumps(podinfo)
+                }
+                jobParams["resourcegpu"] = 0
 
             template = ENV.get_template(os.path.abspath(jobTemp))
             job_description = template.render(job=jobParams)
@@ -810,5 +820,14 @@ def Run():
         time.sleep(1)
 
 if __name__ == '__main__':
+    config = {}
+    if os.path.exists("./scheduler.yaml"):
+        f = open("./scheduler.yaml")
+        try:
+            config = yaml.load(f)
+        except:
+            config = {}
+        f.close()
+
     Run()
     #print k8sUtils.get_pod_events("d493d41c-45ea-4e85-8ca4-01c3533cd727")
