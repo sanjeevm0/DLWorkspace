@@ -10,8 +10,8 @@ metadata:
      userName: {{ job["userNameLabel"] }}
   {% if "annotations" in job %}
   annotations:
-    {% for annotationKey,annotationVal in job["annotations"] %}
-    {{ annotationkey }}: {{ annotationVal }}
+    {% for annotationKey,annotationVal in job["annotations"].items() %}
+    - {{ annotationKey }}: {{ annotationVal }}
     {% endfor %}
   {% endif %}
 spec:
