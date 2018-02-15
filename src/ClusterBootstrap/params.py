@@ -636,7 +636,7 @@ scriptblocks = {
         "kubernetes stop jobmanager",
         "webui",
         # If the daemonset is restarted too soon, before kill is successful, it may not be able to be srated all. 
-        "sleep 120", 
+        "sleep 2", 
         "kubernetes start jobmanager",
         "kubernetes start restfulapi",
         "kubernetes start webportal",

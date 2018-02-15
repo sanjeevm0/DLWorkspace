@@ -1451,6 +1451,12 @@ def acs_get_jobendpt(jobId):
     ret = "http://%s:%s" % (ip, port)
     print ret
 
+def get_jobendpt(jobId):
+    k8sconfig["kubelet-path"] = "./deploy/bin/kubectl --server=https://%s:%s --certificate-authority=%s --client-key=%s --client-certificate=%s" % (config["kubernetes_master_node"][0], config["k8sAPIport"], "./deploy/ssl/ca/ca.pem", "./deploy/ssl/kubelet/apiserver-key.pem", "./deploy/ssl/kubelet/apiserver.pem")
+    addr = k8sUtils.GetServiceAddress(jobId)
+    get_ETCD_master_nodes(config["clusterId"])
+    return "http://{0}:{1}".format(config["kubernetes_master_node"][0], addr[0]["hostPort"])
+
 def get_mount_fileshares(curNode = None):
     allmountpoints = { }
     fstab = ""
@@ -3293,6 +3299,9 @@ def run_command( args, command, nargs, parser ):
             elif nargs[0]=="vm":
                 if (len(nargs) == 2):
                     acs_tools.az_sys("vm {0} --ids $(az vm list -g {1} --query \"[].id\" -o tsv)".format(nargs[1], config["resource_group"]))
+
+    elif command == "jobendpt":
+        print get_jobendpt(nargs[0])
 
     elif command == "update" and len(nargs)>=1:
         if nargs[0] == "config":
