@@ -52,8 +52,8 @@ if __name__ == '__main__':
     DockerUtils.copy_from_docker_image("{{cnf["k8s-bld"]}}", "/kubelet", "../kubernetes/kubelet")
     print "Copy file kubectl"
     DockerUtils.copy_from_docker_image("{{cnf["k8s-bld"]}}", "/kubectl", "../kubernetes/kubectl")
-    print "Copy file kubegpucri"
-    DockerUtils.copy_from_docker_image("{{cnf["k8s-bld"]}}", "/kubegpucri", "../kubernetes/kubegpucri")
+    print "Copy file crishim"
+    DockerUtils.copy_from_docker_image("{{cnf["k8s-bld"]}}", "/crishim", "../kubernetes/crishim")
     print "Copy file kube-scheduler"
     DockerUtils.copy_from_docker_image("{{cnf["k8s-bld"]}}", "/kube-scheduler", "../kubernetes/kube-scheduler")
 

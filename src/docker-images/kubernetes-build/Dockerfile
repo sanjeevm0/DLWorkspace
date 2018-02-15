@@ -25,15 +25,20 @@ RUN mkdir -p /go/src/github.com/Microsoft
 RUN git clone https://github.com/{{cnf["k8scri-gitrepo"]}} /go/src/github.com/Microsoft/KubeGPU
 WORKDIR /go/src/github.com/Microsoft/KubeGPU
 RUN git checkout {{cnf["k8scri-gitbranch"]}}
-# Build the CRI and copy file to root
-WORKDIR /go/src/github.com/Microsoft/KubeGPU/cri/kubegpucri
-RUN go install
-WORKDIR /go/src/github.com/Microsoft/KubeGPU/cmd/kube-scheduler
-RUN go install
-# Build the CRI and device advertiser - single binary for now
-RUN cp /go/bin/kubegpucri /
-# Build the scheduler
-RUN cp /go/bin/kube-scheduler /
+WORKDIR /go/src/github.com/Microsoft/KubeGPU
+# make the shim and scheduler
+RUN make
+# Copy binaries to root
+RUN cp /go/src/github.com/Microsoft/KubeGPU/_output/* /
+# # Build the CRI and copy file to root
+# WORKDIR /go/src/github.com/Microsoft/KubeGPU/cri/kubegpucri
+# RUN go install
+# WORKDIR /go/src/github.com/Microsoft/KubeGPU/cmd/kube-scheduler
+# RUN go install
+# # Build the CRI and device advertiser - single binary for now
+# RUN cp /go/bin/kubegpucri /
+# # Build the scheduler
+# RUN cp /go/bin/kube-scheduler /
 
 # Change working directory to root
 WORKDIR /

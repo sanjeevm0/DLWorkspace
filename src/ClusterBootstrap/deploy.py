@@ -844,8 +844,8 @@ def get_hyperkube_docker(force = False) :
     if force or not os.path.exists("./deploy/bin/kubectl"):
         copy_from_docker_image(config['kubernetes_docker_image'], "/kubectl", "./deploy/bin/kubectl")		
     if config['kube_custom_cri']:
-        if force or not os.path.exists("./deploy/bin/kubegpucri"):
-            copy_from_docker_image(config['kubernetes_docker_image'], "/kubegpucri", "./deploy/bin/kubegpucri")
+        if force or not os.path.exists("./deploy/bin/crishim"):
+            copy_from_docker_image(config['kubernetes_docker_image'], "/crishim", "./deploy/bin/crishim")
 
 def deploy_masters(force = False):
     print "==============================================="
