@@ -7,6 +7,7 @@ import subprocess
 import yaml
 import re
 import numbers
+import time
 
 sys.path.append("../utils")
 import utils
@@ -125,13 +126,28 @@ def acs_get_kube_nodes():
                 #print "Nodes: {0}\n NodeNames: {1}".format(nodes, nodeNames)
                 #exit()
                 config["acs_nodes"] = nodeNames
-                return nodeNames
+                return config["acs_nodes"]
             except Exception as e:
                 return []
         else:
             return []
     else:
         return config["acs_nodes"]
+
+# wait for nodes to be up
+def acs_wait_for_kube():
+    numNodes = 0
+    expectedNodes = config["worker_node_num"] + config["master_node_num"]
+    while numNodes < expectedNodes:
+        binary = os.path.abspath('./deploy/bin/kubectl')
+        kubeconfig = os.path.abspath('./deploy/'+config["acskubeconfig"])
+        cmd = binary + ' -o=json --kubeconfig='+kubeconfig+' get nodes'    
+        nodeInfo = utils.subproc_runonce(cmd)
+        nodes = yaml.load(nodeInfo)
+        numNodes = len(nodes["items"])
+        if numNodes < expectedNodes:
+            print "Waiting for {0} kubernetes nodes to start up, currently have only {1} nodes".format(expectedNodes, numNodes)
+            time.sleep(5)
 
 # divide nodes into master / agent 
 def acs_set_nodes_info():
@@ -194,9 +210,9 @@ def acs_set_desired_dns(node, nodeInfo=None):
                 nodeInfo["desiredDns"] = node
             config["acs_node_from_dns"][nodeInfo["desiredDns"]] = node
 
-def acs_set_node_from_dns(dnsname, checkForNode=True):
-    if "acs_node_from_dns" not in config or 0==len(config["acs_node_from_dns"]) or (checkForNode and (dnsname not in config["acs_node_from_dns"])):
-        allnodes = acs_get_kube_nodes()
+def acs_set_node_from_dns(dnsname):
+    allnodes = acs_get_kube_nodes()
+    if "acs_node_from_dns" not in config or 0==len(config["acs_node_from_dns"]) or ((dnsname != "") and (dnsname not in config["acs_node_from_dns"])):
         for n in allnodes:
             acs_set_desired_dns(n)
 
@@ -216,9 +232,6 @@ def acs_set_node_ip_info(node, needPrivateIP):
             nodeInfo["privateIp"] = fullInfo[0]["ipConfigs"][0]["privateIp"]
     acs_set_desired_dns(node, nodeInfo)
     return nodeInfo
-
-def acs_set_desired_dns_nodes():
-    acs_set_node_from_dns("", False)
 
 # create public ip for node
 def acs_create_public_ip(node):
@@ -410,7 +423,7 @@ def acs_get_ip_info_nodes(bNeedPrivateIP):
 
 def acs_update_machines(configLocal):
     if (not "machines" in configLocal) or (len(configLocal["machines"])==0):
-        acs_set_desired_dns_nodes()
+        acs_set_node_from_dns("")
         #print "Worker: {0}".format(config["acs_agent_nodes"])
         #print "Master: {0}".format(config["acs_master_nodes"])
         configLocal["machines"] = {}
@@ -480,10 +493,14 @@ def acs_deploy():
     # Add rules for NSG
     acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
 
+    # Get kubectl binary / acs config
+    acs_get_config()
+
+    # Wait for nodes to start up
+    acs_wait_for_kube()
+
     # Create public IP / DNS
     acs_create_node_ips()
-
-    acs_get_config()
 
     # Update machine names in config
     acs_update_azconfig(True)
