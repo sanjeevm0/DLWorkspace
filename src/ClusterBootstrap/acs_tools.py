@@ -453,6 +453,8 @@ def acs_update_azconfig(gen_cluster_config):
             acs_init_azconfig()
             bModified = acs_update_machines(acs_config)
             if bModified:
+                if "machines" not in config or len(config["machines"])==0:
+                    config["machines"] = acs_config["machines"]
                 acs_write_azconfig(acs_config)
     else:
         configNew = acs_generate_azconfig()
@@ -501,9 +503,6 @@ def acs_deploy():
 
     # Create public IP / DNS
     acs_create_node_ips()
-
-    # Update machine names in config
-    acs_update_azconfig(True)
 
 # Main / Globals
 azConfigFile = "azure_cluster_config.yaml"
