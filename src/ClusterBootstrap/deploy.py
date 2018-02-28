@@ -3302,7 +3302,7 @@ def run_command( args, command, nargs, parser ):
                 get_nodes(config["clusterId"])
                 acs_label_webui()
             elif nargs[0]=="openports":
-                acs_tools.acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
+                acs_tools.acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767", "Influx" : 8086})
             elif nargs[0]=="getserviceaddr":
                 print "Address: =" + json.dumps(k8sUtils.GetServiceAddress(nargs[1]))
             elif nargs[0]=="storagemount":

@@ -491,7 +491,7 @@ def acs_deploy():
     az_create_sql()
 
     # Add rules for NSG
-    acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767"})
+    acs_add_nsg_rules({"HTTPAllow" : 80, "RestfulAPIAllow" : 5000, "AllowKubernetesServicePorts" : "30000-32767", "Influx" : 8086})
 
     # Get kubectl binary / acs config
     acs_get_config()
