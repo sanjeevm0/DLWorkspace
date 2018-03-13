@@ -115,7 +115,7 @@ def acs_get_kube_nodes():
     if "acs_nodes" not in config:
         binary = os.path.abspath('./deploy/bin/kubectl')
         kubeconfig = os.path.abspath('./deploy/'+config["acskubeconfig"])
-        if (os.path.exists(binary)):
+        if (os.path.exists(binary) and os.path.exists(kubeconfig)):
             cmd = binary + ' -o=json --kubeconfig='+kubeconfig+' get nodes'
             nodeInfo = utils.subproc_runonce(cmd)
             try:
@@ -466,6 +466,8 @@ def acs_update_azconfig(gen_cluster_config):
     return acs_config
 
 def acs_deploy():
+    global config
+
     generate_key = not os.path.exists("./deploy/sshkey")
 
     cmd = "group create"
@@ -503,6 +505,9 @@ def acs_deploy():
 
     # Create public IP / DNS
     acs_create_node_ips()
+
+    #print "HERE"
+    config = {}
 
     # Update machine names in config
     #acs_update_azconfig(True)
