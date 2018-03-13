@@ -549,7 +549,7 @@ def get_ETCD_master_nodes_from_config(clusterId):
     return Nodes
 
 def get_ETCD_master_nodes(clusterId):
-    if "etcd_node" in config and len(config["etcd_node"] > 0):
+    if "etcd_node" in config and len(config["etcd_node"]) > 0:
         Nodes = config["etcd_node"]
         config["kubernetes_master_node"] = Nodes
         #print ("From etcd_node " + " ".join(map(str, Nodes)))
@@ -582,7 +582,7 @@ def get_worker_nodes_from_config(clusterId):
     return Nodes
 
 def get_worker_nodes(clusterId):
-    if "worker_node" in config and len(config["worker_node"] > 0):
+    if "worker_node" in config and len(config["worker_node"]) > 0:
         return config["worker_node"]
     if "useclusterfile" not in config or not config["useclusterfile"]:
         return get_worker_nodes_from_cluster_report(clusterId)
@@ -3279,7 +3279,7 @@ def run_command( args, command, nargs, parser ):
         elif (len(nargs) >= 1):
             if nargs[0]=="deploy":
                 acs_tools.acs_deploy() # Core K8s cluster deployment
-                config = {} # reset for next round
+                config = init_config(default_config_parameters) # reset for next round
             elif nargs[0]=="getconfig":
                 acs_tools.acs_get_config()
             elif nargs[0]=="getip":

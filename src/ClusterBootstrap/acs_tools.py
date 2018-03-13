@@ -395,6 +395,7 @@ def acs_write_azconfig(configToWrite):
 def acs_init_azconfig():
     az_tools.config = az_tools.init_config()
     az_tools.config["isacs"] = True
+    az_tools.config["azure_cluster"]["file_share_name"] = "files"
     az_tools.config["azure_cluster"]["cluster_name"] = config["cluster_name"]
     az_tools.config["azure_cluster"]["azure_location"] = config["cluster_location"]
     az_tools.config = az_tools.update_config(az_tools.config, False)
