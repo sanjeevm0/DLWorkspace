@@ -362,7 +362,7 @@ def useSqlAzure():
         return True
 
 def useAzureFileshare():
-    return "file_share_name" in config["azure_cluster"]
+    return ("file_share_name" in config["azure_cluster"]) or config["isacs"]
 
 def gen_cluster_config(output_file_name, output_file=True):
     bSQLOnly = (config["azure_cluster"]["infra_node_num"]<=0)
