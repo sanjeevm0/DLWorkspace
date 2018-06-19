@@ -84,7 +84,7 @@ def render_template(template_file, target_file, config, verbose=False):
             print e
             pass
     
-def render_template_directory(template_dir, target_dir,config, verbose=False):
+def render_template_directory(template_dir, target_dir,config, verbose=False, exclude_dir=None):
     if target_dir in StaticVariable.rendered_target_directory:
         return
     else:
@@ -97,7 +97,22 @@ def render_template_directory(template_dir, target_dir,config, verbose=False):
             open( markfile, 'w').close()
         filenames = os.listdir(template_dir)
         for filename in filenames:
-            if os.path.isfile(os.path.join(template_dir, filename)):
+            if filename == "copy_dir":
+                fullname = os.path.join(template_dir, filename)
+                with open( fullname ) as f:
+                    content = f.readlines()
+                content = [x.strip() for x in content]
+                for copy_dir in content:
+                    fullname_copy_dir = os.path.join(template_dir, copy_dir)
+                    # print "To render via copy %s" % fullname_copy_dir
+                    # Allow target directory to be re-rendered
+                    StaticVariable.rendered_target_directory.pop(target_dir, None)
+                    render_template_directory(fullname_copy_dir, target_dir,config, verbose, exclude_dir=template_dir)
+            elif os.path.isfile(os.path.join(template_dir, filename)):
+                if exclude_dir is not None:
+                    check_file = os.path.join(exclude_dir, filename)
+                    if os.path.exists(check_file):
+                        continue
                 render_template(os.path.join(template_dir, filename), os.path.join(target_dir, filename),config, verbose)
             else:
                 srcdir = os.path.join(template_dir, filename) 
@@ -106,7 +121,11 @@ def render_template_directory(template_dir, target_dir,config, verbose=False):
                     os.system( "rm -rf %s" % dstdir )
                     os.system( "cp -r %s %s" %(srcdir, dstdir))
                 else:
-                    render_template_directory(srcdir, dstdir,config, verbose)
+                    if exclude_dir is None:
+                        render_template_directory(srcdir, dstdir,config, verbose)
+                    else:
+                        exdir = os.path.join(exclude_dir, filename)
+                        render_template_directory(srcdir, dstdir,config, verbose, exclude_dir=exdir)
 
 # Execute a remote SSH cmd with identity file (private SSH key), user, host
 def SSH_exec_cmd(identity_file, user,host,cmd,showCmd=True):
@@ -213,6 +232,36 @@ def scan_nodes( identity_file, user, iprange ):
                 if output.find("hello")>=0:
                     print "\n" + host 
     
+def json_load_byteified(file_handle):
+    return _byteify(
+        json.load(file_handle, object_hook=_byteify),
+        ignore_dicts=True
+    )
+
+def json_loads_byteified(json_text):
+    return _byteify(
+        json.loads(json_text, object_hook=_byteify),
+        ignore_dicts=True
+    )
+
+# Get string objects instead of Unicode from JSON
+def _byteify(data, ignore_dicts = False):
+    # if this is a unicode string, return its string representation
+    if isinstance(data, unicode):
+        return data.encode('utf-8')
+    # if this is a list of values, return list of byteified values
+    if isinstance(data, list):
+        return [ _byteify(item, ignore_dicts=True) for item in data ]
+    # if this is a dictionary, return dictionary of byteified keys and values
+    # but only if we haven't already byteified it
+    if isinstance(data, dict) and not ignore_dicts:
+        return {
+            _byteify(key, ignore_dicts=True): _byteify(value, ignore_dicts=True)
+            for key, value in data.iteritems()
+        }
+    # if it's anything else, return it in its original form
+    return data
+
 def exec_cmd_local(execmd, supressWarning = False):
     if supressWarning:
         cmd += " 2>/dev/null"

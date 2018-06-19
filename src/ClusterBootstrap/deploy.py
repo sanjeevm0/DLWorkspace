@@ -156,7 +156,6 @@ def check_config(cnf):
     _check_config_items("etcd_endpoints",cnf)
     _check_config_items("ssh_cert",cnf)
     _check_config_items("pod_ip_range",cnf)
-    _check_config_items("kubernetes_docker_image",cnf)
     _check_config_items("service_cluster_ip_range",cnf)
     if not os.path.isfile(config["ssh_cert"]):
         raise Exception("ERROR: we cannot find ssh key file at %s. \n please run 'python build-pxe-coreos.py docker_image_name' to generate ssh key file and pxe server image." % config["ssh_cert"]) 
@@ -255,8 +254,11 @@ def update_config():
 
     # update docker image
     if config["kube_custom_scheduler"] or config["kube_custom_cri"]:
-        config["kubernetes_docker_image"] = config["worker-dockerregistry"] + config["dockerprefix"] + "kubernetes:" + config["dockertag"]
-        #print "New docker image: {0}".format(config["kubernetes_docker_image"])
+        if "container" not in config["dockers"]:
+            config["dockers"]["container"] = {}
+        if "hyperkube" not in config["dockers"]["container"]:
+            config["dockers"]["container"]["hyperkube"] = {}            
+        config["dockers"]["container"]["hyperkube"]["fullname"] = config["worker-dockerregistry"] + config["dockerprefix"] + "kubernetes:" + config["dockertag"]
 
 
 def add_ssh_key():
@@ -521,6 +523,22 @@ def get_nodes_from_config(machinerole):
                     Nodes.append(nodename)
         return sorted(Nodes)
 
+# Get a list of scaled nodes from cluster.yaml 
+def get_scaled_nodes_from_config():
+    if "machines" not in config:
+        return []
+    else:
+        domain = get_domain()
+        Nodes = []
+        for nodename in config["machines"]:
+            nodeInfo = config["machines"][nodename]
+            if "scaled" in nodeInfo and nodeInfo["scaled"]==True:
+                if len(nodename.split("."))<3:
+                    Nodes.append(nodename+domain)
+                else:
+                    Nodes.append(nodename)
+        return sorted(Nodes)
+
 def get_ETCD_master_nodes_from_cluster_portal(clusterId):
     output = urllib.urlopen(form_cluster_portal_URL("etcd", clusterId)).read()
     output = json.loads(json.loads(output))
@@ -581,13 +599,19 @@ def get_worker_nodes_from_config(clusterId):
     config["worker_node"] = Nodes
     return Nodes
 
-def get_worker_nodes(clusterId):
+def get_worker_nodes(clusterId, isScaledOnly):
+    nodes = []
     if "worker_node" in config and len(config["worker_node"]) > 0:
-        return config["worker_node"]
+        nodes = config["worker_node"]
     if "useclusterfile" not in config or not config["useclusterfile"]:
-        return get_worker_nodes_from_cluster_report(clusterId)
+        nodes = get_worker_nodes_from_cluster_report(clusterId)
     else:
-        return get_worker_nodes_from_config(clusterId)
+        nodes = get_worker_nodes_from_config(clusterId)
+
+    if isScaledOnly:
+        return get_scaled_nodes_from_config()
+    else:
+        return nodes
 
 def limit_nodes(nodes):
     if limitnodes is not None:
@@ -604,7 +628,12 @@ def limit_nodes(nodes):
         return nodes
 
 def get_nodes(clusterId):
-    nodes = get_ETCD_master_nodes(clusterId) + get_worker_nodes(clusterId)
+    nodes = get_ETCD_master_nodes(clusterId) + get_worker_nodes(clusterId, False)
+    nodes = limit_nodes(nodes)
+    return nodes
+
+def get_scaled_nodes(clusterId):
+    nodes = get_worker_nodes(clusterId, True)
     nodes = limit_nodes(nodes)
     return nodes
 
@@ -614,7 +643,7 @@ def check_master_ETCD_status():
     print "==============================================="
     print "Checking Available Nodes for Deployment..."
     get_ETCD_master_nodes(config["clusterId"])
-    get_worker_nodes(config["clusterId"])
+    get_worker_nodes(config["clusterId"], False)
     print "==============================================="
     print "Activate Master Node(s): %s\n %s \n" % (len(config["kubernetes_master_node"]),",".join(config["kubernetes_master_node"]))
     print "Activate ETCD Node(s):%s\n %s \n" % (len(config["etcd_node"]),",".join(config["etcd_node"]))
@@ -843,14 +872,14 @@ def get_kubectl_binary(force = False):
 def get_hyperkube_docker(force = False) :
     os.system("mkdir -p ./deploy/bin")
     if force or not os.path.exists("./deploy/bin/hyperkube"):
-        copy_from_docker_image(config['kubernetes_docker_image'], "/hyperkube", "./deploy/bin/hyperkube")
+        copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/hyperkube", "./deploy/bin/hyperkube")
     if force or not os.path.exists("./deploy/bin/kubelet"):
-        copy_from_docker_image(config['kubernetes_docker_image'], "/kubelet", "./deploy/bin/kubelet")
+        copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/kubelet", "./deploy/bin/kubelet")
     if force or not os.path.exists("./deploy/bin/kubectl"):
-        copy_from_docker_image(config['kubernetes_docker_image'], "/kubectl", "./deploy/bin/kubectl")		
+        copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/kubectl", "./deploy/bin/kubectl")		
     if config['kube_custom_cri']:
         if force or not os.path.exists("./deploy/bin/crishim"):
-            copy_from_docker_image(config['kubernetes_docker_image'], "/crishim", "./deploy/bin/crishim")
+            copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/crishim", "./deploy/bin/crishim")
 
 def deploy_masters(force = False):
     print "==============================================="
@@ -1094,7 +1123,7 @@ def create_PXE_ubuntu():
 
 
 def clean_worker_nodes():
-    workerNodes = get_worker_nodes(config["clusterId"])
+    workerNodes = get_worker_nodes(config["clusterId"], False)
     worker_ssh_user = config["admin_username"]
     for nodeIP in workerNodes:
         print "==============================================="
@@ -1148,6 +1177,26 @@ def in_list( node, nodelists ):
                 return True;
         return False;
 
+def update_scaled_worker_nodes( nargs ):
+    utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
+    write_nodelist_yaml()
+
+    os.system('sed "s/##etcd_endpoints##/%s/" "./deploy/kubelet/options.env.template" > "./deploy/kubelet/options.env"' % config["etcd_endpoints"].replace("/","\\/"))
+    os.system('sed "s/##api_servers##/%s/" ./deploy/kubelet/kubelet.service.template > ./deploy/kubelet/kubelet.service' % config["api_servers"].replace("/","\\/"))
+    os.system('sed "s/##api_servers##/%s/" ./deploy/kubelet/worker-kubeconfig.yaml.template > ./deploy/kubelet/worker-kubeconfig.yaml' % config["api_servers"].replace("/","\\/"))
+
+    #urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/kube/kubelet/kubelet", "./deploy/bin/kubelet")
+    get_hyperkube_docker()
+
+    workerNodes = get_worker_nodes(config["clusterId"], True)
+    workerNodes = limit_nodes(workerNodes)
+    for node in workerNodes:
+        if in_list(node, nargs):
+            update_worker_node(node)
+
+    os.system("rm ./deploy/kubelet/options.env")
+    os.system("rm ./deploy/kubelet/kubelet.service")
+    os.system("rm ./deploy/kubelet/worker-kubeconfig.yaml")
 
 def update_worker_nodes( nargs ):
     utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
@@ -1160,7 +1209,7 @@ def update_worker_nodes( nargs ):
     #urllib.urlretrieve ("http://ccsdatarepo.westus.cloudapp.azure.com/data/kube/kubelet/kubelet", "./deploy/bin/kubelet")
     get_hyperkube_docker()
 
-    workerNodes = get_worker_nodes(config["clusterId"])
+    workerNodes = get_worker_nodes(config["clusterId"], False)
     workerNodes = limit_nodes(workerNodes)
     for node in workerNodes:
         if in_list(node, nargs):
@@ -1175,7 +1224,7 @@ def update_worker_nodes( nargs ):
 
 def reset_worker_nodes():
     utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
-    workerNodes = get_worker_nodes(config["clusterId"])
+    workerNodes = get_worker_nodes(config["clusterId"], False)
     workerNodes = limit_nodes(workerNodes)
     for node in workerNodes:
         reset_worker_node(node)
@@ -2448,14 +2497,14 @@ def set_host_names_by_lookup():
                 utils.SSH_exec_cmd( config["ssh_cert"], config["admin_username"], node, cmd )
 
 def set_freeflow_router(  ):
-    nodes = get_worker_nodes(config["clusterId"]) + get_ETCD_master_nodes(config["clusterId"])
+    nodes = get_worker_nodes(config["clusterId"], False) + get_ETCD_master_nodes(config["clusterId"])
     for node in nodes:
         set_freeflow_router_on_node(node)
 
 
 
 def set_freeflow_router_on_node( node ):
-    docker_image = config["freeflow_route_docker_image"]
+    docker_image = config["dockers"]["container"]["freeflow"]["fullname"]
     docker_name = "freeflow"
     network = config["network"]["container-network-iprange"]
     #setup HOST_IP, iterate all the host IP, find the one in ip range {{network.Container-networking}}
@@ -2699,6 +2748,17 @@ def kubernetes_label_nodes( verb, servicelists, force ):
             elif verb == "remove":
                 kubernetes_label_node(cmdoptions, nodename, label+"-")
 
+def kubernetes_patch_nodes_provider (provider, scaledOnly):
+    nodes = []
+    if scaledOnly:
+        nodes = get_scaled_nodes(config["clusterId"])
+    else:
+        nodes = get_nodes(config["clusterId"])
+    for node in nodes:
+        nodename = kubernetes_get_node_name(node)
+        patch = '\'{"spec":{"providerID":"' + provider + '://' + nodename + '"}}\''
+        run_kubectl(["patch node %s %s %s" % (nodename, "-p", patch)])
+
 # Label kubernete nodes according to property of node (usually specified in config.yaml or cluster.yaml)
 # Certain property of node:
 # E.g., rack 
@@ -2912,7 +2972,7 @@ def run_command( args, command, nargs, parser ):
     config["launch-glusterfs-opt"] = args.glusterfs;
 
     get_ssh_config()
-
+    configuration( config, verbose )
     if args.yes:
         global defanswer
         print "Use yes for default answer"
@@ -2974,6 +3034,7 @@ def run_command( args, command, nargs, parser ):
 
     elif command == "deploy" and "clusterId" in config:
         deploy_ETCD_master(force=args.force)
+        utils.render_template("./template/kubeconfig/kubeconfig.yaml.template", "deploy/kubeconfig/kubeconfig.yaml", config)
 
     elif command == "nfs-server":
         if len(nargs) > 0:
@@ -2987,6 +3048,7 @@ def run_command( args, command, nargs, parser ):
             exit()
 
     elif command == "build":
+        configuration( config, verbose )
         if len(nargs) <=0:
             init_deployment()
 #            response = raw_input_with_default("Create ISO file for deployment (y/n)?")
@@ -3030,6 +3092,14 @@ def run_command( args, command, nargs, parser ):
             check_master_ETCD_status()
             gen_configs()
             update_worker_nodes( nargs )
+
+    elif command == "updatescaledworker":
+        response = raw_input_with_default("Deploy Scaled Worker Nodes (y/n)?")
+        if first_char(response) == "y":
+            #utils.render_template_directory("./template/kubelet", "./deploy/kubelet",config)
+            check_master_ETCD_status()
+            gen_configs()
+            update_scaled_worker_nodes( nargs )
 
     elif command == "resetworker":
         response = raw_input_with_default("Deploy Worker Nodes (y/n)?")
@@ -3106,7 +3176,7 @@ def run_command( args, command, nargs, parser ):
         # nodes = get_nodes(config["clusterId"])
         # ToDo: change pending, schedule glusterFS on master & ETCD nodes, 
         if nargs[0] == "start" or nargs[0] == "update" or nargs[0] == "stop" or nargs[0] == "clear":
-            nodes = get_worker_nodes(config["clusterId"])
+            nodes = get_worker_nodes(config["clusterId"], False)
             nodesinfo = get_partitions(nodes, config["data-disk"] )
             glusterFSargs = fetch_config( config, ["glusterFS", "partitions"] )
             if glusterFSargs is None:
@@ -3204,6 +3274,10 @@ def run_command( args, command, nargs, parser ):
         nodes = get_nodes(config["clusterId"])
         run_script_on_all(nodes, nargs, sudo = args.sudo )
 
+    elif command == "runscriptonscaleup" and len(nargs)>=1:
+        nodes = get_scaled_nodes(config["clusterId"])
+        run_script_on_all(nodes, nargs, sudo = args.sudo )
+
     elif command == "copytoall" and len(nargs)>=1:
         nodes = get_nodes(config["clusterId"])
         print "Copy all from: {0} to: {1}".format(nargs[0], nargs[1])
@@ -3224,7 +3298,8 @@ def run_command( args, command, nargs, parser ):
             gen_configs()
             update_reporting_service()
 
-    elif command == "display":
+    elif command == "display" or command == "clusterinfo":
+        configuration( config, verbose )
         check_master_ETCD_status()
 
     elif command == "webui":
@@ -3374,7 +3449,16 @@ def run_command( args, command, nargs, parser ):
                     kubernetes_label_nodes("active", [], args.yes )
                 else:
                     parser.print_help()
-                    print "Error: kubernetes labels expect a verb which is either active, inactive or remove, but get: " + nargs[1]
+                    print "Error: kubernetes labels expect a verb which is either active, inactive or remove, but get: %s" % nargs[1]
+            elif nargs[0] == "patchprovider":
+                # TODO(harry): read a tag to decide which tools we are using, so we don't need nargs[1]
+                if len(nargs)>=2 and ( nargs[1] == "aztools" or nargs[1] == "gstools" or nargs[1] == "awstools" ):
+                    if len(nargs)==3:
+                        kubernetes_patch_nodes_provider(nargs[1], nargs[2])
+                    else:
+                        kubernetes_patch_nodes_provider(nargs[1], False)
+                else:
+                    print "Error: kubernetes patchprovider expect a verb which is either aztools, gstools or awstools."
             elif nargs[0] == "mark":
                 kubernetes_mark_nodes( nargs[1:], True)
             elif nargs[0] == "unmark":
