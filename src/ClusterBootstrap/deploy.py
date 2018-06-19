@@ -880,6 +880,8 @@ def get_hyperkube_docker(force = False) :
     if config['kube_custom_cri']:
         if force or not os.path.exists("./deploy/bin/crishim"):
             copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/crishim", "./deploy/bin/crishim")
+        if force or not os.path.exists("./deploy/bin/nvidiagpuplugin.so"):
+            copy_from_docker_image(config["dockers"]["container"]["hyperkube"]["fullname"], "/nvidiagpuplugin.so", "./deploy/bin/nvidiagpuplugin.so")
 
 def deploy_masters(force = False):
     print "==============================================="
