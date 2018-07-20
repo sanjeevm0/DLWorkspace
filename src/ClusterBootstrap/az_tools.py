@@ -541,8 +541,13 @@ def get_disk_from_vm(vmname):
     return output.split("/")[-1].strip('\n')
 
 
-def gen_cluster_config(output_file_name, output_file=True):
+def gen_cluster_config(output_file_name, output_file=True, no_az=False):
     bSQLOnly = (config["azure_cluster"]["infra_node_num"] <= 0)
+    if useAzureFileshare() and not no_az:
+        # theoretically it could be supported, but would require storage account to be created first in nested template and then
+        # https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-template-functions-resource#listkeys
+        # could be used to access storage keys - these could be assigned as variable which gets passed into main deployment template
+        raise Exception("Azure file share not currently supported with no_az")
     if useAzureFileshare():
         cmd = """
             az storage account show-connection-string \
@@ -598,7 +603,12 @@ def gen_cluster_config(output_file_name, output_file=True):
             "role": "infrastructure", "private-ip": get_vm_ip(i, False)}
 
     # Generate the workers in machines.
-    for vm in get_vm_list_by_grp():
+    vm_list = []
+    if not no_az:
+        vm_list = get_vm_list_by_grp()
+    else:
+        vm_list = get_vm_list_by_enum()
+    for vm in vm_list:
         vmname = vm["name"]
         if "-worker" in vmname:
             if isNewlyScaledMachine(vmname):
@@ -664,6 +674,16 @@ def get_vm_list_by_grp():
 
     return utils.json_loads_byteified(output)
 
+# simply enumerate to get vm list
+def get_vm_list_by_enum():
+    vm_list = []
+    for i in range(int(config["azure_cluster"]["worker_node_num"])):
+        vminfo = {}
+        vminfo["name"] = "%s-worker%02d" % (config["azure_cluster"]
+                                ["cluster_name"], i + 1)
+        vminfo["vmSize"] = config["azure_cluster"]["worker_vm_size"]
+        vm_list.append(vminfo)
+    return vm_list
 
 def random_str(length):
     return ''.join(random.choice(string.lowercase) for x in range(length))
@@ -720,7 +740,7 @@ def run_command(args, command, nargs, parser):
         delete_cluster()
 
     elif command == "genconfig":
-        gen_cluster_config("cluster.yaml")
+        gen_cluster_config("cluster.yaml", no_az=args.noaz)
 
 if __name__ == '__main__':
     # the program always run at the current directory.
@@ -808,6 +828,12 @@ Command:
     parser.add_argument("--verbose", "-v",
                         help="Enable verbose output during script execution",
                         action="store_true"
+                        )
+
+    parser.add_argument("--noaz",
+                        help="Dev node does not have access to azure portal, e.g. ARM template deployment",
+                        action="store_true",
+                        default=False,
                         )
 
     parser.add_argument("command",
