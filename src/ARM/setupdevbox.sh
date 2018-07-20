@@ -44,5 +44,5 @@ cd /home/dlwsadmin/dlworkspace/src/ClusterBootstrap
 ./deploy.py -y build
 
 # Copy ssh keys
-cat ~/.ssh/id_rsa.pub | sshpass -p <password> ssh dlwsadmin@HOST "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys
+cat deploy/sshkey/id_rsa.pub | /usr/bin/sshpass -p $pwd ssh dlwsadmin@sanjeevmk8s7-worker01.northcentralus.cloudapp.azure.com "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 
