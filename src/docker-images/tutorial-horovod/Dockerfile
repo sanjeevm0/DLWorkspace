@@ -39,7 +39,7 @@ RUN apt-get update -y && \
 
 RUN mkdir -p /var/www/html/
 
-RUN apt-get update -y && apt-get install -y python3-pycurl locales ssh-askpass
+RUN apt-get update -y && apt-get install -y python3-pycurl locales ssh-askpass  python3-tk screen
 RUN pip install --upgrade pip 
 RUN pip install setuptools 
 RUN pip install flask flask.restful 
@@ -88,6 +88,9 @@ ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64/
 
 EXPOSE 1380 180
 ADD RecogServer /RecogServer
+
+# Add Glove vectors 
+RUN apt-get update -y && apt-get install -y zip unzip  
 
 #Telemetry
 #--------------
