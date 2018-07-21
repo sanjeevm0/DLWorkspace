@@ -1,9 +1,10 @@
+#!/usr/bin/python
 import argparse
 import yaml
 
 def add_dashboard():
     server_name = "{0}-infra01.{1}.cloudapp.azure.com".format(
-        config["cluster_name"], config["azure_cluster"][config["cluster_name"]["azure_location"]])
+        config["cluster_name"], config["azure_cluster"][config["cluster_name"]]["azure_location"])
     config["Dashboards"] = {
         "grafana" : {"servers" : server_name},
         "influxDB" : {"servers" : server_name}
@@ -37,8 +38,8 @@ def add_azure_cluster(cluster_name, cluster_location, worker_vm_size, infra_vm_s
             "worker_vm_size" : worker_vm_size,
             "infra_vm_size" : infra_vm_size,
             "last_scaled_node_num" : 0,
-            "worker_node_num" : worker_node_num,
-            "infra_node_num" : infra_node_num
+            "worker_node_num" : int(worker_node_num),
+            "infra_node_num" : int(infra_node_num)
         }
     }
 
@@ -78,6 +79,6 @@ if __name__ == '__main__':
     add_misc()
     add_deploy(args.users.split(','))
       
-    with f as open(args.outfile, 'w'):
+    with open(args.outfile, 'w') as f:
         yaml.dump(config, f)
 
