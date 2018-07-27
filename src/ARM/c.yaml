@@ -1,0 +1,29 @@
+Dashboards:
+  grafana: {servers: sanjeevmk8s7-infra01.northcentralus.cloudapp.azure.com}
+  influxDB: {servers: sanjeevmk8s7-infra01.northcentralus.cloudapp.azure.com}
+DeployAuthentications: [Corp, Gmail, Live]
+UserGroups:
+  DLWSAdmins:
+    Allowed: [sanjeevm@microsoft.com, jinl@microsoft.com]
+    gid: '20000'
+    uid: 20000-20002
+  DLWSRegister:
+    Allowed: ['@gmail.com', '@live.com', '@hotmail.com', '@microsoft.com']
+    gid: '20001'
+    uid: 20001-29999
+WebUIadminGroups: [DLWSAdmins]
+WebUIauthorizedGroups: [DLWSAdmins]
+WebUIregisterGroups: [DLWSRegister]
+WinbindServers: []
+azure_cluster:
+  sanjeevmk8s7: {azure_location: northcentralus, infra_node_num: 1, infra_vm_size: Standard_D2,
+    last_scaled_node_num: 0, worker_node_num: 1, worker_vm_size: Standard_D2}
+cloud_config:
+  dev_network:
+    source_addresses_prefixes: [73.109.29.0/24, 167.220.0.0/16, 131.107.0.0/16, 52.151.11.0/24,
+      52.226.68.0/24]
+cloud_influxdb_node: sanjeevmk8s7-infra01.northcentralus.cloudapp.azure.com
+cluster_name: sanjeevmk8s7
+datasource: MySQL
+mysql_password: M$ft2018
+webuiport: 3080
