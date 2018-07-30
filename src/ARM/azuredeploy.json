@@ -2,16 +2,9 @@
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "clustername": {
-            "type": "string"
-        },
-        "clusterlocation": {
-            "type": "string",
-            "defaultValue": "westus2"
-        },
         "workervmsize": {
             "type": "string",
-            "defaultValue": "Standard_NC6"
+            "defaultValue": "Standard_D1_v2"
         },
         "infravmsize": {
             "type": "string",
@@ -19,23 +12,28 @@
         },
         "workernodenum": {
             "type": "int",
-            "defaultValue": "2"
+            "defaultValue": 2
         },
         "infranodenum": {
             "type": "int",
-            "defaultValue": "1"
+            "defaultValue": 1
         },
         "vmpassword": {
-            "type": "securestring"
+            "type": "securestring",
+            "defaultValue": "M$ft2018##1234"
         }
+    },
+    "variables": {
+        "clustername": "[substring(resourceGroup().name, 0, sub(length(resourceGroup().name), 6))]",
+        "clusterlocation": "[resourceGroup().location]"
     },
     "resources": [
         {
             "comments": "Virtual Network for cluster.",
             "type": "Microsoft.Network/virtualNetworks",
-            "name": "[concat(parameters('clustername'), '-VNet']",
+            "name": "[concat(variables('clustername'), '-VNet')]",
             "apiVersion": "2018-02-01",
-            "location": "westus2",
+            "location": "[resourceGroup().location]",
             "properties": {
                 "addressSpace": {
                     "addressPrefixes": [
@@ -50,8 +48,427 @@
                         }
                     }
                 ]
+            }
+        },
+        {
+            "comments": "Network Security Group for cluster.",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[concat(variables('clustername'), '-nsg')]",
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "allowalltcp",
+                        "properties": {
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRanges": [
+                                "80",
+                                "443",
+                                "30000-32767",
+                                "25826",
+                                "3080"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "allowalludp",
+                        "properties": {
+                            "protocol": "Udp",
+                            "access": "Allow",
+                            "priority": 1010,
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "25826"
+                        }
+                    },
+                    {
+                        "name": "allowdevtcp",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "access": "Allow",
+                            "priority": 900,
+                            "direction": "Inbound",
+                            "sourceAddressPrefixes": [
+                                "73.109.29.0/24",
+                                "167.220.0.0/16",
+                                "131.107.0.0/16",
+                                "52.151.11.0/24",
+                                "52.226.68.0/24"
+                            ],
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRanges": [
+                                "22",
+                                "1443",
+                                "2379",
+                                "3306",
+                                "5000",
+                                "8086"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "tcpinterconnect",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "access": "Allow",
+                            "priority": 850,
+                            "direction": "Inbound",
+                            "sourceAddressPrefixes": [
+                                "13.66.243.71/32",
+                                "13.77.158.224/32",
+                                "13.66.205.4/32"
+                            ],
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRanges": [
+                                "22",
+                                "1443",
+                                "2379",
+                                "3306",
+                                "5000",
+                                "8086"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
             },
-            "dependsOn": []
+            "name": "[concat(variables('clustername'), '-dev', 'PublicIP')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Dynamic",
+                "idleTimeoutInMinutes": 4,
+                "dnsSettings": {
+                    "domainNameLabel": "[concat(variables('clustername'), '-dev')]",
+                    "fqdn": "[concat(variables('clustername'), '-dev', '.', variables('clusterlocation'), '.cloudapp.azure.com')]"
+                },
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "name": "[concat(variables('clustername'), '-infra0', copyIndex(1), 'PublicIP')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "copy": {
+                "name": "infraloop",
+                "count": "[parameters('infranodenum')]"
+            },
+            "properties": {
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Dynamic",
+                "idleTimeoutInMinutes": 4,
+                "dnsSettings": {
+                    "domainNameLabel": "[concat(variables('clustername'), '-infra0', copyIndex(1))]",
+                    "fqdn": "[concat(variables('clustername'), '-infra0', copyIndex(1), '.', variables('clusterlocation'), '.cloudapp.azure.com')]"
+                },
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "name": "[concat(variables('clustername'), '-worker0', copyIndex(1), 'PublicIP')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "copy": {
+                "name": "workerloop",
+                "count": "[parameters('workernodenum')]"
+            },
+            "properties": {
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Dynamic",
+                "idleTimeoutInMinutes": 4,
+                "dnsSettings": {
+                    "domainNameLabel": "[concat(variables('clustername'), '-worker0', copyIndex(1))]",
+                    "fqdn": "[concat(variables('clustername'), '-worker0', copyIndex(1), '.', variables('clusterlocation'), '.cloudapp.azure.com')]"
+                },
+                "ipTags": []
+            }
+        },
+        {
+            "comments": "Network interface for dev.",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('clustername'), '-dev', 'VMNic')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "[concat('ipconfig', variables('clustername'), '-dev')]",
+                        "properties": {
+                            "privateIPAddress": "[concat('192.168.255.', add(parameters('infranodenum'), 1))]",
+                            "privateIPAllocationMethod": "Static",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-dev', 'PublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', concat(variables('clustername'), '-VNet'), 'mySubnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+                },
+                "primary": true
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-dev', 'PublicIP'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', concat(variables('clustername'), '-VNet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+            ]
+        },
+        {
+            "comments": "Network interface for infra.",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('clustername'), '-infra0', copyIndex(1), 'VMNic')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "[concat('ipconfig', variables('clustername'), '-infra0', copyIndex(1))]",
+                        "properties": {
+                            "privateIPAddress": "[concat('192.168.255.', copyIndex(1))]",
+                            "privateIPAllocationMethod": "Static",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-infra0', copyIndex(1), 'PublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', concat(variables('clustername'), '-VNet'), 'mySubnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+                },
+                "primary": true
+            },
+            "copy": {
+                "count": "[parameters('infranodenum')]",
+                "name": "infraloop"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-infra0', copyIndex(1), 'PublicIP'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', concat(variables('clustername'), '-VNet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+            ]
+        },
+        {
+            "comments": "Network interface for worker.",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('clustername'), '-worker0', copyIndex(1), 'VMNic')]",
+            "apiVersion": "2018-02-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "[concat('ipconfig', variables('clustername'), '-worker0', copyIndex(1))]",
+                        "properties": {
+                            "privateIPAddress": "[concat('192.168.1.', copyIndex(1))]",
+                            "privateIPAllocationMethod": "Static",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-worker0', copyIndex(1), 'PublicIP'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', concat(variables('clustername'), '-VNet'), 'mySubnet')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+                },
+                "primary": true
+            },
+            "copy": {
+                "count": "[parameters('workernodenum')]",
+                "name": "workerloop"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('clustername'), '-worker0', copyIndex(1), 'PublicIP'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', concat(variables('clustername'), '-VNet'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', concat(variables('clustername'), '-nsg'))]"
+            ]
+        },
+        {
+            "comments": "Dev VM.",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(variables('clustername'), '-dev')]",
+            "apiVersion": "2017-12-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('infravmsize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        },
+                        "diskSizeGB": 30
+                    }
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('clustername'), '-dev')]",
+                    "adminUsername": "dlwsadmin",
+                    "adminPassword": "[parameters('vmpassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-dev', 'VMNic'))]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-dev', 'VMNic'))]"
+            ]
+        },
+        {
+            "comments": "Infra VM.",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(variables('clustername'), '-infra0', copyIndex(1))]",
+            "apiVersion": "2017-12-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('infravmsize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        },
+                        "diskSizeGB": 30
+                    }
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('clustername'), '-infra0', copyIndex(1))]",
+                    "adminUsername": "dlwsadmin",
+                    "adminPassword": "[parameters('vmpassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-infra0', copyIndex(1), 'VMNic'))]"
+                        }
+                    ]
+                }
+            },
+            "copy": {
+                "count": "[parameters('infranodenum')]",
+                "name": "infraloop"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-infra0', copyIndex(1), 'VMNic'))]"
+            ]
+        },
+        {
+            "comments": "Worker VM.",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(variables('clustername'), '-worker0', copyIndex(1))]",
+            "apiVersion": "2017-12-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('workervmsize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "createOption": "FromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        },
+                        "diskSizeGB": 30
+                    }
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('clustername'), '-worker0', copyIndex(1))]",
+                    "adminUsername": "dlwsadmin",
+                    "adminPassword": "[parameters('vmpassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-worker0', copyIndex(1), 'VMNic'))]"
+                        }
+                    ]
+                }
+            },
+            "copy": {
+                "count": "[parameters('workernodenum')]",
+                "name": "workerloop"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-worker0', copyIndex(1), 'VMNic'))]"
+            ]
         }
     ]
 }
