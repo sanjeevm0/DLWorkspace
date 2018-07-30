@@ -19,8 +19,11 @@
             "defaultValue": 1
         },
         "vmpassword": {
-            "type": "securestring",
-            "defaultValue": "M$ft2018##1234"
+            "type": "securestring"
+        },
+        "dlwsadmins": {
+            "type": "string",
+            "defaultValue": "sanjeevm@microsoft.com,jinl@microsoft.com"
         }
     },
     "variables": {
@@ -468,6 +471,27 @@
             },
             "dependsOn": [
                 "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('clustername'), '-worker0', copyIndex(1), 'VMNic'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('clustername'), '-dev', '/setupdevbox')]",
+            "apiVersion": "2017-12-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.0",
+                "autoUpgradeMinorVersion": true,
+                "protectedSettings": {
+                    "fileUris": [
+                        "https://github.com/Microsoft/DLWorkspace/blob/ARMTemplate/src/ARM/setupdevbox.sh"
+                    ],
+                    "commandToExecute": "[concat('bash setupdevbox.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', parameters('vmpassword'), ' --users ', parameters('dlwsadmins'))]"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('clustername'), '-dev')]"
             ]
         }
     ]
