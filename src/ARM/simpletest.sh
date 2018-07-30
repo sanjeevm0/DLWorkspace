@@ -14,3 +14,5 @@ sudo apt-get install -y --no-install-recommends \
         openssh-client \
         ca-certificates \
         sshpass
+
+git clone http://github.com/Microsoft/DLWorkspace /home/dlwsadmin/dlworkspace

@@ -1,21 +1,28 @@
 {
-    "type": "Microsoft.Compute/virtualMachines/extensions",
-    "name": "[concat(variables('clustername'), '-dev', '/setupdevbox')]",
-    "apiVersion": "2017-12-01",
-    "location": "[variables('clusterlocation')]",
-    "properties": {
-        "publisher": "Microsoft.Azure.Extensions",
-        "type": "CustomScript",
-        "typeHandlerVersion": "2.0",
-        "autoUpgradeMinorVersion": true,
-        "protectedSettings": {
-            "fileUris": [
-                "https://github.com/Microsoft/DLWorkspace/blob/ARMTemplate/src/ARM/setupdevbox.sh"
-            ],
-            "commandToExecute": "[concat('bash setupdevbox.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', parameters('vmpassword'), ' --users ', parameters('dlwsadmins'))]"
-        }
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "variables": {
+        "clustername": "[substring(resourceGroup().name, 0, sub(length(resourceGroup().name), 6))]",
+        "clusterlocation": "[resourceGroup().location]"
     },
-    "dependsOn": [
-        "[concat(variables('clustername'), '-dev')]"
+    "resources" : [
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('clustername'), '-dev', '/setupdevbox')]",
+            "apiVersion": "2017-12-01",
+            "location": "[variables('clusterlocation')]",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.0",
+                "autoUpgradeMinorVersion": true,
+                "protectedSettings": {
+                    "fileUris": [
+                        "https://github.com/sanjeevm0/DLWorkspace/blob/ARMTemplate/src/ARM/simpletest.sh"
+                    ],
+                    "commandToExecute": "bash simpletest.sh"
+                }
+            }
+        }
     ]
 }
