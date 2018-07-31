@@ -12,7 +12,7 @@
         },
         "workernodenum": {
             "type": "int",
-            "defaultValue": 2
+            "defaultValue": 1
         },
         "infranodenum": {
             "type": "int",
@@ -28,7 +28,8 @@
     },
     "variables": {
         "clustername": "[substring(resourceGroup().name, 0, sub(length(resourceGroup().name), 6))]",
-        "clusterlocation": "[resourceGroup().location]"
+        "clusterlocation": "[resourceGroup().location]",
+        "singleQuote": "'"
     },
     "resources": [
         {
@@ -101,35 +102,12 @@
                             "priority": 900,
                             "direction": "Inbound",
                             "sourceAddressPrefixes": [
+                                "192.16.0.0/16",
                                 "73.109.29.0/24",
                                 "167.220.0.0/16",
                                 "131.107.0.0/16",
                                 "52.151.11.0/24",
                                 "52.226.68.0/24"
-                            ],
-                            "sourcePortRange": "*",
-                            "destinationAddressPrefix": "*",
-                            "destinationPortRanges": [
-                                "22",
-                                "1443",
-                                "2379",
-                                "3306",
-                                "5000",
-                                "8086"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "tcpinterconnect",
-                        "properties": {
-                            "protocol": "Tcp",
-                            "access": "Allow",
-                            "priority": 850,
-                            "direction": "Inbound",
-                            "sourceAddressPrefixes": [
-                                "13.66.243.71/32",
-                                "13.77.158.224/32",
-                                "13.66.205.4/32"
                             ],
                             "sourcePortRange": "*",
                             "destinationAddressPrefix": "*",
@@ -487,7 +465,7 @@
                     "fileUris": [
                         "https://raw.githubusercontent.com/sanjeevm0/DLWorkspace/ARMTemplate/src/ARM/setupdevbox.sh"
                     ],
-                    "commandToExecute": "[concat('bash setupdevbox.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', parameters('vmpassword'), ' --users ', parameters('dlwsadmins'))]"
+                    "commandToExecute": "[concat('bash setupdevbox.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', variables('singleQuote'), parameters('vmpassword'), variables('singleQuote'), ' --users ', variables('singleQuote'), parameters('dlwsadmins'), variables('singleQuote'))]"
                 }
             },
             "dependsOn": [
