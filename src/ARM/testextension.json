@@ -16,9 +16,9 @@
                 "type": "CustomScript",
                 "typeHandlerVersion": "2.0",
                 "autoUpgradeMinorVersion": true,
-                "protectedSettings": {
+                "protectedSettings": {                    
                     "fileUris": [
-                        "https://github.com/sanjeevm0/DLWorkspace/blob/ARMTemplate/src/ARM/simpletest.sh"
+                        "https://raw.githubusercontent.com/sanjeevm0/DLWorkspace/ARMTemplate/src/ARM/simpletest.sh"
                     ],
                     "commandToExecute": "bash simpletest.sh"
                 }

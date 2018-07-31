@@ -485,7 +485,7 @@
                 "autoUpgradeMinorVersion": true,
                 "protectedSettings": {
                     "fileUris": [
-                        "https://github.com/Microsoft/DLWorkspace/blob/ARMTemplate/src/ARM/setupdevbox.sh"
+                        "https://raw.githubusercontent.com/sanjeevm0/DLWorkspace/ARMTemplate/src/ARM/setupdevbox.sh"
                     ],
                     "commandToExecute": "[concat('bash setupdevbox.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', parameters('vmpassword'), ' --users ', parameters('dlwsadmins'))]"
                 }
