@@ -42,7 +42,10 @@
                 "type": "CustomScript",
                 "typeHandlerVersion": "2.0",
                 "autoUpgradeMinorVersion": true,
-                "protectedSettings": {                    
+                "settings": {
+                    "timestamp": 34242535235                   
+                },
+                "protectedSettings": {                
                     "fileUris": [
                         "https://raw.githubusercontent.com/sanjeevm0/DLWorkspace/ARMTemplate/src/ARM/simpletest.sh"
                     ],
