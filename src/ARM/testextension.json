@@ -1,9 +1,35 @@
 {
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workervmsize": {
+            "type": "string",
+            "defaultValue": "Standard_D1_v2"
+        },
+        "infravmsize": {
+            "type": "string",
+            "defaultValue": "Standard_D1_v2"
+        },
+        "workernodenum": {
+            "type": "int",
+            "defaultValue": 1
+        },
+        "infranodenum": {
+            "type": "int",
+            "defaultValue": 1
+        },
+        "vmpassword": {
+            "type": "securestring"
+        },
+        "dlwsadmins": {
+            "type": "string",
+            "defaultValue": "sanjeevm@microsoft.com,jinl@microsoft.com"
+        }
+    },
     "variables": {
         "clustername": "[substring(resourceGroup().name, 0, sub(length(resourceGroup().name), 6))]",
-        "clusterlocation": "[resourceGroup().location]"
+        "clusterlocation": "[resourceGroup().location]",
+        "singleQuote": "'"
     },
     "resources" : [
         {
@@ -20,7 +46,7 @@
                     "fileUris": [
                         "https://raw.githubusercontent.com/sanjeevm0/DLWorkspace/ARMTemplate/src/ARM/simpletest.sh"
                     ],
-                    "commandToExecute": "bash simpletest.sh"
+                    "commandToExecute": "[concat('bash simpletest.sh ', ' --cluster_name ', variables('clustername'), ' --cluster_location ', variables('clusterlocation'), ' --worker_vm_size ', parameters('workervmsize'), '  --worker_node_num ', parameters('workernodenum'), ' --infra_vm_size ', parameters('infravmsize'), ' --infra_node_num ', parameters('infranodenum'), ' --password ', variables('singleQuote'), parameters('vmpassword'), variables('singleQuote'), ' --users ', variables('singleQuote'), parameters('dlwsadmins'), variables('singleQuote'))]"
                 }
             }
         }
