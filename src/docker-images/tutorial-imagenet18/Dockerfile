@@ -29,6 +29,8 @@ RUN wget https://repo.anaconda.com/archive/Anaconda3-5.2.0-Linux-x86_64.sh
 RUN bash Anaconda3-5.2.0-Linux-x86_64.sh -b -p /usr/local/anaconda
 RUN rm Anaconda3-5.2.0-Linux-x86_64.sh
 
+ENV PATH="${PATH}:/usr/local/anaconda/bin"
+
 RUN update-ca-certificates
 
 RUN conda install pytorch torchvision -c pytorch
@@ -40,5 +42,4 @@ RUN CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 RUN pip install tensorboardX
 RUN pip install tqdm
 
-ENV PATH="${PATH}:/usr/local/anaconda/bin"
 
