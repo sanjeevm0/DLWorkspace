@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import argparse
 import yaml
+import os
 
 def add_dashboard():
     server_name = "{0}-infra01.{1}.cloudapp.azure.com".format(
@@ -30,7 +31,7 @@ def add_deploy(users):
     config["WebUIregisterGroups"] = ["DLWSRegister"]
     config["WinbindServers"] = []
 
-def add_azure_cluster(cluster_name, cluster_location, worker_vm_size, infra_vm_size, worker_node_num, infra_node_num):
+def add_azure_cluster(username, cluster_name, cluster_location, worker_vm_size, infra_vm_size, worker_node_num, infra_node_num):
     config["cluster_name"] = cluster_name
     config["azure_cluster"] = {
         config["cluster_name"] : {
@@ -55,10 +56,19 @@ def add_misc():
     config["mysql_password"] = """M$ft2018"""
     config["webuiport"] = 3080
 
+def copy_ssh_key(username, password, machine):
+    cmd = """cat /home/%s/dlworkspace/src/ClusterBootstrap/deploy/sshkey/id_rsa.pub | /usr/bin/sshpass -p '%s' ssh -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" %s@%s "mkdir -p /home/%s/.ssh && cat >> /home/%s/.ssh/authorized_keys" """ % (username, password, username, machine, username, username)
+    print cmd
+    os.system(cmd)
+
 if __name__ == '__main__':
     config = {} # empty config
     parser = argparse.ArgumentParser('createconfig.py')
-    parser.add_argument("outfile")
+    parser.add_argument("command",
+			help="genconfig or sshkey")
+    parser.add_argument("--outfile",
+                        help="Configuration file output",
+                        action="store")
     parser.add_argument("--cluster_name",
                         help="Specify a cluster name",
                         action="store")
@@ -69,16 +79,23 @@ if __name__ == '__main__':
     parser.add_argument("--infra_vm_size")
     parser.add_argument("--worker_node_num")
     parser.add_argument("--infra_node_num")
+    parser.add_argument("--admin_username")
+    parser.add_argument("--password")
     parser.add_argument("--users") # comma separated list
 
     args = parser.parse_args()
 
-    add_azure_cluster(args.cluster_name, args.cluster_location, args.worker_vm_size, args.infra_vm_size, args.worker_node_num, args.infra_node_num)
-    add_cloud_config()
-    add_dashboard()
-    add_misc()
-    add_deploy(args.users.split(','))
+    if args.command == "genconfig":
+        add_azure_cluster(args.admin_username, args.cluster_name, args.cluster_location, args.worker_vm_size, args.infra_vm_size, args.worker_node_num, args.infra_node_num)
+        add_cloud_config()
+        add_dashboard()
+        add_misc()
+        add_deploy([item.strip() for item in args.users.split(',')])
       
-    with open(args.outfile, 'w') as f:
-        yaml.dump(config, f)
-
+        with open(args.outfile, 'w') as f:
+            yaml.dump(config, f)
+    elif args.command == "sshkey":
+        for i in range(0, int(args.infra_node_num)):
+            copy_ssh_key(args.admin_username, args.password, "%s-infra%02d" % (args.cluster_name, (i+1)))
+        for i in range(0, int(args.worker_node_num)):
+            copy_ssh_key(args.admin_username, args.password, "%s-worker%02d" % (args.cluster_name, (i+1)))
